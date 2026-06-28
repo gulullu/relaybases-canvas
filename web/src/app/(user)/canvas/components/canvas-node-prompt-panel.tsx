@@ -32,6 +32,7 @@ type CanvasNodePromptPanelProps = {
 export function CanvasNodePromptPanel({ node, isRunning, onPromptChange, onConfigChange, onGenerate, onStop, mentionReferences = [], onImageSettingsOpenChange }: CanvasNodePromptPanelProps) {
     const globalConfig = useEffectiveConfig();
     const openConfigDialog = useConfigStore((state) => state.openConfigDialog);
+    const isAiConfigReady = useConfigStore((state) => state.isAiConfigReady);
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const mode = defaultMode(node.type);
     const config = buildNodeConfig(globalConfig, node, mode);
@@ -52,6 +53,10 @@ export function CanvasNodePromptPanel({ node, isRunning, onPromptChange, onConfi
     const submit = () => {
         const text = prompt.trim();
         if (!text || isRunning) return;
+        if (!isAiConfigReady(config, config.model)) {
+            openConfigDialog(true);
+            return;
+        }
         onGenerate(node.id, mode, text);
         setPrompt("");
     };

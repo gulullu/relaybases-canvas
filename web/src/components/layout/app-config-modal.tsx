@@ -81,10 +81,18 @@ export function AppConfigModal() {
     const clearPromptContinue = useConfigStore((state) => state.clearPromptContinue);
     const webdavReady = Boolean(webdav.url.trim());
 
+    const closeConfig = () => {
+        setConfigDialogOpen(false);
+        clearPromptContinue();
+    };
+
     const finishConfig = () => {
         const ready = Boolean(config.mediaApiKey.trim() || (config.textApiKey.trim() && config.textModel.trim()));
         setConfigDialogOpen(false);
-        if (!ready) return;
+        if (!ready) {
+            clearPromptContinue();
+            return;
+        }
         message.success(shouldPromptContinue ? "配置已保存，请继续刚才的请求" : "配置已保存");
         clearPromptContinue();
     };
@@ -185,7 +193,7 @@ export function AppConfigModal() {
             open={isConfigOpen}
             width={980}
             centered
-            onCancel={() => setConfigDialogOpen(false)}
+            onCancel={closeConfig}
             styles={{ body: { maxHeight: "72vh", overflowY: "auto", paddingRight: 12 } }}
             footer={
                 <Button type="primary" onClick={finishConfig}>
