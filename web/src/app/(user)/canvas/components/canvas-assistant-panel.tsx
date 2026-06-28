@@ -248,15 +248,17 @@ export function CanvasAssistantPanel({
     const [onlineLogs, setOnlineLogs] = useState<OnlineAgentLog[]>([]);
     const [resizing, setResizing] = useState(false);
     const [removedReferenceIds, setRemovedReferenceIds] = useState<Set<string>>(new Set());
-    const [localSessions, setLocalSessions] = useState<CanvasAssistantSession[]>(() => (sessions.length ? sessions : [createSession()]));
-    const [localActiveSessionId, setLocalActiveSessionId] = useState<string | null>(activeSessionId);
+    const initialSessionsRef = useRef<CanvasAssistantSession[] | null>(null);
+    if (!initialSessionsRef.current) initialSessionsRef.current = sessions.length ? sessions : [createSession()];
+    const [localSessions, setLocalSessions] = useState<CanvasAssistantSession[]>(() => initialSessionsRef.current || [createSession()]);
+    const [localActiveSessionId, setLocalActiveSessionId] = useState<string | null>(() => activeSessionId || initialSessionsRef.current?.[0]?.id || null);
     const snapshotRef = useRef(snapshot);
     const pendingToolContextRef = useRef(new Map<string, PendingOnlineToolContext>());
 
     useEffect(() => {
         if (!sessions.length) return;
-        setLocalSessions(sessions);
-        setLocalActiveSessionId(activeSessionId);
+        setLocalSessions((current) => (assistantSessionsShallowEqual(current, sessions) ? current : sessions));
+        setLocalActiveSessionId((current) => (current === activeSessionId ? current : activeSessionId));
     }, [activeSessionId, sessions]);
 
     useEffect(() => {
@@ -264,10 +266,11 @@ export function CanvasAssistantPanel({
     }, [snapshot]);
 
     useEffect(() => {
+        if (assistantSessionsShallowEqual(sessions, localSessions) && activeSessionId === localActiveSessionId) return;
         onSessionsChange(localSessions, localActiveSessionId);
-    }, [localActiveSessionId, localSessions, onSessionsChange]);
+    }, [activeSessionId, localActiveSessionId, localSessions, onSessionsChange, sessions]);
 
-    const safeSessions = localSessions.length ? localSessions : [createSession()];
+    const safeSessions = useMemo(() => (localSessions.length ? localSessions : [createSession()]), [localSessions]);
     const activeSession = useMemo(() => safeSessions.find((session) => session.id === localActiveSessionId) || safeSessions[0] || null, [localActiveSessionId, safeSessions]);
     const historySessions = safeSessions.filter((session) => session.messages.length > 0);
     const messages = activeSession?.messages || [];
@@ -1442,4 +1445,10 @@ function compactMetadata(metadata: CanvasNodeData["metadata"]) {
 function createSession(): CanvasAssistantSession {
     const now = new Date().toISOString();
     return { id: nanoid(), title: "新对话", messages: [], createdAt: now, updatedAt: now };
+}
+
+function assistantSessionsShallowEqual(a: CanvasAssistantSession[], b: CanvasAssistantSession[]) {
+    if (a === b) return true;
+    if (a.length !== b.length) return false;
+    return a.every((session, index) => session === b[index]);
 }
