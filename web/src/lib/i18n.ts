@@ -6,8 +6,8 @@ const zhToEn = {
     无限画布: "Infinite Canvas",
     "RelayBases Canvas": "RelayBases Canvas",
     "把生图、视频和 Agent 串进同一张画布": "Image, Video, And Agents On One Canvas",
-    "面向 RelayBases 用户的创作入口。获取 API Key 后，在画布配置里分别填写媒体 Key 和文本 Key，即可使用图片生成、视频任务、Agent 编排和本地精选提示词库。":
-        "A creation workspace for RelayBases users. Get API keys from RelayBases, enter separate media and text keys in settings, then use image generation, video tasks, agent orchestration, and the local prompt library.",
+    "面向 RelayBases 用户的创作入口。获取 API Key 后，在画布配置里分别填写媒体 Key 和文本 Key，即可使用图片生成、视频任务、Agent 编排和精选提示词库。":
+        "A creation workspace for RelayBases users. Get API keys from RelayBases, enter separate media and text keys in settings, then use image generation, video tasks, agent orchestration, and the curated prompt library.",
     "获取 API Key": "Get API Key",
     进入画布: "Enter Canvas",
     "配置 Key": "Configure Keys",
@@ -24,9 +24,9 @@ const zhToEn = {
     控制台: "Console",
     钱包充值: "Wallet",
     "高质量示例": "High Quality Examples",
-    "从本地精选提示词库抽取示例图，发布后随项目一起部署，不依赖远端原库。": "Examples come from the local curated prompt library and deploy with the project, without depending on the original remote library.",
+    "从精选提示词库抽取示例图，发布后随项目一起部署，不依赖远端原库。": "Examples come from the curated prompt library and deploy with the project, without depending on the original remote library.",
     "查看更多提示词": "More Prompts",
-    本地精选提示词示例: "Local Curated Prompt Examples",
+    精选提示词示例: "Curated Prompt Examples",
     查看提示词库: "View Prompt Library",
     "没有可展示的示例图": "No Examples Available",
     "基于 infinite-canvas 定制": "Customized From infinite-canvas",

@@ -131,7 +131,7 @@ export default function IndexPage() {
                         </a>
                         <h1 className="mt-5 max-w-4xl text-balance text-4xl font-semibold leading-[1.04] tracking-normal text-stone-950 sm:text-5xl lg:text-6xl dark:text-white">把生图、视频和 Agent 串进同一张画布</h1>
                         <p className="mt-5 max-w-2xl text-base leading-7 text-stone-600 dark:text-stone-300">
-                            面向 RelayBases 用户的创作入口。获取 API Key 后，在画布配置里分别填写媒体 Key 和文本 Key，即可使用图片生成、视频任务、Agent 编排和本地精选提示词库。
+                            面向 RelayBases 用户的创作入口。获取 API Key 后，在画布配置里分别填写媒体 Key 和文本 Key，即可使用图片生成、视频任务、Agent 编排和精选提示词库。
                         </p>
                         <div className="mt-7 flex flex-wrap gap-3">
                             <a
@@ -252,7 +252,7 @@ export default function IndexPage() {
                     <div className="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-end">
                         <div>
                             <p className="text-sm font-medium uppercase tracking-[0.2em] text-stone-500 dark:text-stone-400">Prompt Gallery</p>
-                            <h2 className="mt-3 text-3xl font-semibold tracking-normal text-stone-950 dark:text-white">本地精选提示词示例</h2>
+                            <h2 className="mt-3 text-3xl font-semibold tracking-normal text-stone-950 dark:text-white">精选提示词示例</h2>
                         </div>
                         <a href="/prompts" className="inline-flex items-center gap-2 text-sm font-medium text-stone-700 transition hover:text-stone-950 dark:text-stone-300 dark:hover:text-white">
                             查看提示词库
