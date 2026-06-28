@@ -1,9 +1,11 @@
 "use client";
 
 import { Drawer } from "antd";
+import { ExternalLink } from "lucide-react";
 import Link from "next/link";
 
 import { navigationTools, type NavigationToolSlug } from "@/constant/navigation-tools";
+import { relayBasesLinks } from "@/constant/relaybases-links";
 import { cn } from "@/lib/utils";
 
 type MobileNavDrawerProps = {
@@ -34,6 +36,29 @@ export function MobileNavDrawer({ open, activeToolSlug, onClose }: MobileNavDraw
                         </Link>
                     );
                 })}
+            </div>
+            <div className="mt-6 border-t border-stone-200 pt-4 dark:border-stone-800">
+                <p className="px-3 text-xs font-medium uppercase tracking-[0.18em] text-stone-400">RelayBases</p>
+                <div className="mt-2 space-y-1">
+                    {relayBasesLinks.map((link) => (
+                        <a
+                            key={link.href}
+                            href={link.href}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={onClose}
+                            className={cn(
+                                "flex items-center justify-between rounded-lg px-3 py-3 text-base transition",
+                                "primary" in link && link.primary
+                                    ? "bg-stone-950 font-medium text-white hover:bg-stone-800 dark:bg-stone-100 dark:text-stone-950 dark:hover:bg-white"
+                                    : "text-stone-600 hover:bg-stone-100 hover:text-stone-950 dark:text-stone-300 dark:hover:bg-stone-800 dark:hover:text-stone-100",
+                            )}
+                        >
+                            <span>{link.label}</span>
+                            <ExternalLink className="size-4 opacity-60" />
+                        </a>
+                    ))}
+                </div>
             </div>
         </Drawer>
     );

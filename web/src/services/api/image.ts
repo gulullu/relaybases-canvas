@@ -1,6 +1,6 @@
 import axios from "axios";
 
-import { buildApiUrl, resolveModelRequestConfig, type AiConfig, type ModelChannel } from "@/stores/use-config-store";
+import { buildApiUrl, isRelayBasesSyncImageModel, modelOptionName, resolveModelRequestConfig, type AiConfig, type ModelChannel } from "@/stores/use-config-store";
 import { nanoid } from "nanoid";
 import { dataUrlToFile } from "@/lib/image-utils";
 import { buildImageReferencePromptText } from "@/lib/image-reference-prompt";
@@ -19,10 +19,7 @@ export type ResponseToolCall = {
     thoughtSignature?: string;
 };
 
-export type ResponseInputMessage =
-    | AiTextMessage
-    | { type: "function_call"; call_id: string; name: string; arguments: string; thoughtSignature?: string }
-    | { role: "tool"; tool_call_id: string; content: string };
+export type ResponseInputMessage = AiTextMessage | { type: "function_call"; call_id: string; name: string; arguments: string; thoughtSignature?: string } | { role: "tool"; tool_call_id: string; content: string };
 
 export type ResponseFunctionTool = {
     type: "function";
@@ -42,10 +39,7 @@ export type ToolResponseResult = {
 type ToolChoice = "auto" | "required" | { type: "function"; name: string };
 type ResponseMessageContent = AiTextMessage["content"] | string;
 type ResponseInputContent = { type: "input_text"; text: string } | { type: "input_image"; image_url: string };
-type ResponseInputItem =
-    | { role: "system" | "user" | "assistant"; content: string | ResponseInputContent[] }
-    | { type: "function_call"; call_id: string; name: string; arguments: string }
-    | { type: "function_call_output"; call_id: string; output: string };
+type ResponseInputItem = { role: "system" | "user" | "assistant"; content: string | ResponseInputContent[] } | { type: "function_call"; call_id: string; name: string; arguments: string } | { type: "function_call_output"; call_id: string; output: string };
 type ResponseApiToolDefinition = {
     type: "function";
     name: string;
@@ -53,9 +47,7 @@ type ResponseApiToolDefinition = {
     parameters: Record<string, unknown>;
     strict?: boolean;
 };
-type ResponseApiOutputItem =
-    | { type?: "message"; content?: Array<{ type?: string; text?: string }> }
-    | { type?: "function_call"; id?: string; call_id?: string; name?: string; arguments?: string };
+type ResponseApiOutputItem = { type?: "message"; content?: Array<{ type?: string; text?: string }> } | { type?: "function_call"; id?: string; call_id?: string; name?: string; arguments?: string };
 type ResponseApiPayload = {
     id?: string;
     output?: ResponseApiOutputItem[];
@@ -64,7 +56,7 @@ type ResponseApiPayload = {
     code?: number;
     msg?: string;
 };
-type ResponseStreamState = { buffer: string; text: string; payload?: ResponseApiPayload; error?: string };
+type ResponseStreamState = { buffer: string; text: string; toolCalls: ResponseToolCall[]; toolCallIndexes: Record<string, number>; payload?: ResponseApiPayload; error?: string };
 
 type ImageApiResponse = {
     data?: Array<Record<string, unknown>>;
@@ -228,6 +220,11 @@ function withSystemPrompt(config: AiConfig, prompt: string) {
     return systemPrompt ? `${systemPrompt}\n\n${prompt}` : prompt;
 }
 
+function isRelayBasesNanaSyncModel(model: string) {
+    const name = modelOptionName(model);
+    return isRelayBasesSyncImageModel(name) && name.includes("nana-banana");
+}
+
 function aiApiUrl(config: AiConfig, path: string) {
     return buildApiUrl(config.baseUrl, path);
 }
@@ -335,6 +332,98 @@ function validateGeminiPayload(payload: GeminiPayload) {
     if (payload.promptFeedback?.blockReason) throw new Error(`Gemini 拒绝了本次请求：${payload.promptFeedback.blockReason}`);
 }
 
+function responseStreamKey(value: unknown) {
+    if (typeof value === "number") return String(value);
+    return typeof value === "string" && value ? value : "";
+}
+
+function uniqueStreamKeys(keys: string[]) {
+    return Array.from(new Set(keys.filter(Boolean)));
+}
+
+function responseStreamToolCallKeys(item: Record<string, unknown>, extraKeys: string[] = []) {
+    return uniqueStreamKeys([...extraKeys, responseStreamKey(item.call_id), responseStreamKey(item.id), responseStreamKey(item.item_id), responseStreamKey(item.output_index)]);
+}
+
+function findResponseStreamToolCallIndex(state: ResponseStreamState, keys: string[]) {
+    for (const key of keys) {
+        const index = state.toolCallIndexes[key];
+        if (typeof index === "number") return index;
+    }
+    return -1;
+}
+
+function rememberResponseStreamToolCallKeys(state: ResponseStreamState, index: number, keys: string[]) {
+    keys.forEach((key) => {
+        state.toolCallIndexes[key] = index;
+    });
+}
+
+function upsertResponseStreamToolCall(state: ResponseStreamState, item: Record<string, unknown>, extraKeys: string[] = []) {
+    const keys = responseStreamToolCallKeys(item, extraKeys);
+    const index = findResponseStreamToolCallIndex(state, keys);
+    const id = stringValue(item.call_id) || stringValue(item.id) || keys[0] || nanoid();
+    const name = stringValue(item.name);
+    const args = typeof item.arguments === "string" ? item.arguments : undefined;
+    if (index >= 0) {
+        const current = state.toolCalls[index];
+        state.toolCalls[index] = {
+            ...current,
+            id: current.id || id,
+            function: {
+                name: current.function.name || name,
+                arguments: args ?? current.function.arguments,
+            },
+        };
+        rememberResponseStreamToolCallKeys(state, index, [...keys, id]);
+        return state.toolCalls[index];
+    }
+    const toolCall: ResponseToolCall = { id, type: "function", function: { name, arguments: args ?? "" } };
+    state.toolCalls.push(toolCall);
+    rememberResponseStreamToolCallKeys(state, state.toolCalls.length - 1, [...keys, id]);
+    return toolCall;
+}
+
+function appendResponseStreamToolCallArguments(state: ResponseStreamState, event: Record<string, unknown>) {
+    const keys = uniqueStreamKeys([responseStreamKey(event.call_id), responseStreamKey(event.item_id), responseStreamKey(event.output_index)]);
+    const index = findResponseStreamToolCallIndex(state, keys);
+    const delta = typeof event.delta === "string" ? event.delta : "";
+    if (!delta) return;
+    if (index >= 0) {
+        const current = state.toolCalls[index];
+        state.toolCalls[index] = { ...current, function: { ...current.function, arguments: `${current.function.arguments || ""}${delta}` } };
+        return;
+    }
+    upsertResponseStreamToolCall(state, { call_id: keys[0] || nanoid(), arguments: delta }, keys);
+}
+
+function setResponseStreamToolCallArguments(state: ResponseStreamState, event: Record<string, unknown>) {
+    const args = typeof event.arguments === "string" ? event.arguments : "";
+    if (!args) return;
+    const keys = uniqueStreamKeys([responseStreamKey(event.call_id), responseStreamKey(event.item_id), responseStreamKey(event.output_index)]);
+    const index = findResponseStreamToolCallIndex(state, keys);
+    if (index >= 0) {
+        const current = state.toolCalls[index];
+        state.toolCalls[index] = { ...current, function: { ...current.function, arguments: args } };
+        return;
+    }
+    upsertResponseStreamToolCall(state, { call_id: keys[0] || nanoid(), arguments: args }, keys);
+}
+
+function finalResponseStreamToolCalls(state: ResponseStreamState) {
+    return state.toolCalls.filter((item) => item.id && item.function.name);
+}
+
+function mergeToolCalls(primary: ResponseToolCall[], secondary: ResponseToolCall[]) {
+    const seen = new Set<string>();
+    return [...primary, ...secondary].filter((item) => {
+        const key = item.id || `${item.function.name}:${item.function.arguments}`;
+        if (!item.function.name || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+    });
+}
+
 async function readFetchError(response: Response, fallback: string) {
     const text = await response.text();
     if (!text) return readStatusError(response.status, fallback);
@@ -365,6 +454,16 @@ function consumeResponseStreamBlock(block: string, state: ResponseStreamState, o
         state.text = event.text;
         onDelta?.(state.text);
     }
+    const item = isRecord(event.item) ? event.item : undefined;
+    if (item?.type === "function_call") {
+        upsertResponseStreamToolCall(state, item, [responseStreamKey(event.item_id), responseStreamKey(event.output_index)]);
+    }
+    if (type === "response.function_call_arguments.delta") {
+        appendResponseStreamToolCallArguments(state, event);
+    }
+    if (type === "response.function_call_arguments.done") {
+        setResponseStreamToolCallArguments(state, event);
+    }
     if (type === "response.completed" && isRecord(event.response)) {
         state.payload = event.response as ResponseApiPayload;
     } else if (Array.isArray(event.output)) {
@@ -377,8 +476,9 @@ function consumeResponseStreamText(state: ResponseStreamState, text: string, onD
     for (;;) {
         const match = state.buffer.match(/\r?\n\r?\n/);
         if (!match) break;
-        consumeResponseStreamBlock(state.buffer.slice(0, match.index), state, onDelta);
-        state.buffer = state.buffer.slice(match.index + match[0].length);
+        const index = match.index ?? 0;
+        consumeResponseStreamBlock(state.buffer.slice(0, index), state, onDelta);
+        state.buffer = state.buffer.slice(index + match[0].length);
     }
     if (flush && state.buffer.trim()) {
         consumeResponseStreamBlock(state.buffer, state, onDelta);
@@ -402,7 +502,7 @@ async function requestStreamingResponse(config: AiConfig, body: Record<string, u
 
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
-    const state: ResponseStreamState = { buffer: "", text: "" };
+    const state: ResponseStreamState = { buffer: "", text: "", toolCalls: [], toolCallIndexes: {} };
     for (;;) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -411,19 +511,14 @@ async function requestStreamingResponse(config: AiConfig, body: Record<string, u
     }
     consumeResponseStreamText(state, decoder.decode(), onDelta, true);
     if (state.error) throw new Error(state.error);
-    if (!state.payload) return { content: state.text, toolCalls: [] };
+    if (!state.payload) return { content: state.text, toolCalls: finalResponseStreamToolCalls(state) };
     validateResponsePayload(state.payload);
     const result = parseToolResponse(state.payload);
-    return { ...result, content: state.text || result.content };
+    return { ...result, content: state.text || result.content, toolCalls: mergeToolCalls(result.toolCalls, finalResponseStreamToolCalls(state)) };
 }
 
 function toGeminiBody(config: AiConfig, messages: ResponseInputMessage[], extra?: Record<string, unknown>) {
-    const systemText = [
-        config.systemPrompt.trim(),
-        ...messages.flatMap((message) => (!("type" in message) && message.role === "system" ? [geminiTextContent(message.content)] : [])),
-    ]
-        .filter(Boolean)
-        .join("\n\n");
+    const systemText = [config.systemPrompt.trim(), ...messages.flatMap((message) => (!("type" in message) && message.role === "system" ? [geminiTextContent(message.content)] : []))].filter(Boolean).join("\n\n");
     const contents = toGeminiContents(messages.filter((message) => ("type" in message ? true : message.role !== "system")));
     return {
         contents,
@@ -483,10 +578,7 @@ function toGeminiToolOptions(tools: ResponseFunctionTool[], toolChoice: ToolChoi
         description: tool.function.description,
         parameters: tool.function.parameters,
     }));
-    const functionCallingConfig =
-        typeof toolChoice === "object"
-            ? { mode: "ANY", allowedFunctionNames: [toolChoice.name] }
-            : { mode: toolChoice === "required" ? "ANY" : "AUTO" };
+    const functionCallingConfig = typeof toolChoice === "object" ? { mode: "ANY", allowedFunctionNames: [toolChoice.name] } : { mode: toolChoice === "required" ? "ANY" : "AUTO" };
     return {
         tools: [{ functionDeclarations }],
         toolConfig: { functionCallingConfig },
@@ -525,8 +617,9 @@ function consumeGeminiStreamText(state: GeminiStreamState, text: string, onDelta
     for (;;) {
         const match = state.buffer.match(/\r?\n\r?\n/);
         if (!match) break;
-        consumeGeminiStreamBlock(state.buffer.slice(0, match.index), state, onDelta);
-        state.buffer = state.buffer.slice(match.index + match[0].length);
+        const index = match.index ?? 0;
+        consumeGeminiStreamBlock(state.buffer.slice(0, index), state, onDelta);
+        state.buffer = state.buffer.slice(index + match[0].length);
     }
     if (flush && state.buffer.trim()) {
         consumeGeminiStreamBlock(state.buffer, state, onDelta);
@@ -657,6 +750,29 @@ export async function requestEdit(config: AiConfig, prompt: string, references: 
     }
     const quality = normalizeQuality(config.quality);
     const requestSize = resolveRequestSize(quality, config.size);
+    if (isRelayBasesNanaSyncModel(requestConfig.model)) {
+        if (mask) throw new Error("Nana Banana 同步图片暂不支持蒙版编辑，请改用 gpt-image-2 编辑");
+        const images = await Promise.all(references.map((image) => imageToDataUrl(image)));
+        try {
+            const response = await axios.post<ImageApiResponse>(
+                aiApiUrl(requestConfig, "/images/generations"),
+                {
+                    model: modelOptionName(requestConfig.model),
+                    prompt: withSystemPrompt(requestConfig, requestPrompt),
+                    n,
+                    images,
+                    ...(requestSize ? { size: requestSize } : {}),
+                },
+                {
+                    headers: aiHeaders(requestConfig, "application/json"),
+                    signal: options?.signal,
+                },
+            );
+            return parseImagePayload(response.data);
+        } catch (error) {
+            throw new Error(readAxiosError(error, "请求失败"));
+        }
+    }
     const formData = new FormData();
     formData.set("model", requestConfig.model);
     formData.set("prompt", withSystemPrompt(requestConfig, requestPrompt));
@@ -670,7 +786,7 @@ export async function requestEdit(config: AiConfig, prompt: string, references: 
         formData.set("size", requestSize);
     }
     const files = await Promise.all(references.map(async (image) => dataUrlToFile({ ...image, dataUrl: await imageToDataUrl(image) })));
-    files.forEach((file) => formData.append("image", file));
+    files.forEach((file) => formData.append("image[]", file));
     if (mask) formData.set("mask", dataUrlToFile(mask));
 
     try {
@@ -683,17 +799,26 @@ export async function requestEdit(config: AiConfig, prompt: string, references: 
 }
 
 export async function requestImageQuestion(config: AiConfig, messages: AiTextMessage[], onDelta: (text: string) => void, options?: RequestOptions) {
-    const requestConfig = resolveModelRequestConfig(config, config.model || config.textModel);
+    if (!config.textModel.trim()) throw new Error("请先配置文本 API Key 并获取文本模型");
+    const requestConfig = resolveModelRequestConfig(config, config.textModel);
     try {
         if (requestConfig.apiFormat === "gemini") {
             const answer = (await requestGeminiStreamingResponse(requestConfig, toGeminiBody(requestConfig, messages), onDelta, options)).content || "没有返回内容";
             if (answer === "没有返回内容") onDelta(answer);
             return answer;
         }
-        const answer = (await requestStreamingResponse(requestConfig, {
-            model: requestConfig.model,
-            input: toResponseInput(withSystemMessage(requestConfig, messages)),
-        }, onDelta, options)).content || "没有返回内容";
+        const answer =
+            (
+                await requestStreamingResponse(
+                    requestConfig,
+                    {
+                        model: requestConfig.model,
+                        input: toResponseInput(withSystemMessage(requestConfig, messages)),
+                    },
+                    onDelta,
+                    options,
+                )
+            ).content || "没有返回内容";
         if (answer === "没有返回内容") onDelta(answer);
         return answer;
     } catch (error) {
@@ -702,18 +827,24 @@ export async function requestImageQuestion(config: AiConfig, messages: AiTextMes
 }
 
 export async function requestToolResponse(config: AiConfig, messages: ResponseInputMessage[], tools: ResponseFunctionTool[], toolChoice: ToolChoice = "auto", onDelta?: (text: string) => void, options?: RequestOptions): Promise<ToolResponseResult> {
-    const requestConfig = resolveModelRequestConfig(config, config.model || config.textModel);
+    if (!config.textModel.trim()) throw new Error("请先配置文本 API Key 并获取文本模型");
+    const requestConfig = resolveModelRequestConfig(config, config.textModel);
     try {
         if (requestConfig.apiFormat === "gemini") {
             return await requestGeminiStreamingResponse(requestConfig, toGeminiBody(requestConfig, messages, toGeminiToolOptions(tools, toolChoice)), onDelta, options);
         }
-        return await requestStreamingResponse(requestConfig, {
-            model: requestConfig.model,
-            input: toResponseInput(withSystemMessage(requestConfig, messages)),
-            tools: tools.map(toResponseTool),
-            tool_choice: toolChoice,
-            parallel_tool_calls: false,
-        }, onDelta, options);
+        return await requestStreamingResponse(
+            requestConfig,
+            {
+                model: requestConfig.model,
+                input: toResponseInput(withSystemMessage(requestConfig, messages)),
+                tools: tools.map(toResponseTool),
+                tool_choice: toolChoice,
+                parallel_tool_calls: false,
+            },
+            onDelta,
+            options,
+        );
     } catch (error) {
         throw new Error(readAxiosError(error, "请求失败"));
     }

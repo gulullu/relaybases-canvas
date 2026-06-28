@@ -1,7 +1,7 @@
 "use client";
 
 import { Copy } from "lucide-react";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Button, Card, Tag } from "antd";
 
 import { formatPromptDate, type Prompt } from "@/services/api/prompts";
@@ -23,6 +23,10 @@ export function PromptCard({
     actionType?: "text" | "primary";
     extraAction?: ReactNode;
 }) {
+    const [coverFailed, setCoverFailed] = useState(false);
+    const coverUrl = item.coverUrl.trim();
+    if (!coverUrl || coverFailed) return null;
+
     return (
         <Card
             hoverable
@@ -30,7 +34,7 @@ export function PromptCard({
             styles={{ body: { padding: 0 } }}
             cover={
                 <button type="button" className="block w-full text-left" onClick={onOpen}>
-                    <img src={item.coverUrl} alt={item.title} className="aspect-[4/3] w-full object-cover" />
+                    <img src={coverUrl} alt={item.title} className="aspect-[4/3] w-full object-cover" onError={() => setCoverFailed(true)} />
                 </button>
             }
         >
@@ -42,8 +46,8 @@ export function PromptCard({
                     </div>
                     <p className="mt-2 line-clamp-3 text-xs leading-5 text-stone-600 dark:text-stone-400">{item.prompt}</p>
                     <div className="mt-3 flex flex-wrap gap-1.5">
-                        {item.tags.map((tag) => (
-                            <Tag key={tag} className="m-0 text-[11px]">
+                        {item.tags.map((tag, index) => (
+                            <Tag key={`${tag}-${index}`} className="m-0 text-[11px]">
                                 {tag}
                             </Tag>
                         ))}

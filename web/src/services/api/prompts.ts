@@ -22,9 +22,16 @@ export type PromptListResponse = {
     total: number;
 };
 
+function currentPromptLanguage() {
+    if (typeof document === "undefined") return "";
+    const language = document.documentElement.dataset.lang || document.documentElement.lang || "";
+    return language.toLowerCase().startsWith("en") ? "en" : "zh";
+}
+
 export async function fetchPrompts({ keyword = "", tag = [], category = ALL_PROMPTS_OPTION, page, pageSize }: { keyword?: string; tag?: string[]; category?: string; page?: number; pageSize?: number } = {}) {
     const params = serializeApiParams(
         compactApiParams({
+            lang: currentPromptLanguage(),
             ...(keyword ? { keyword } : {}),
             ...(tag.length ? { tag } : {}),
             ...(category !== ALL_PROMPTS_OPTION ? { category } : {}),

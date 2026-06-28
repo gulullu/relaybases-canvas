@@ -1,9 +1,9 @@
-import type { BaseLayoutProps } from 'fumadocs-ui/layouts/shared';
-import { appName, gitConfig } from './shared';
-import { ArrowUpRight } from 'lucide-react';
+import type { BaseLayoutProps } from "fumadocs-ui/layouts/shared";
+import { appName, gitConfig } from "./shared";
+import { ArrowUpRight } from "lucide-react";
 
 const githubUrl = `https://github.com/${gitConfig.user}/${gitConfig.repo}`;
-const qqUrl = 'https://qm.qq.com/q/DFnKzZ807u';
+const canvasUrl = "https://canvas.relaybases.com/canvas?mode=new";
 
 export function baseOptions(): BaseLayoutProps {
   return {
@@ -17,9 +17,9 @@ export function baseOptions(): BaseLayoutProps {
     },
     links: [
       {
-        text: '文档导航',
-        url: '/docs/overview/quick-start',
-        on: 'nav',
+        text: "文档导航",
+        url: "/docs/overview/quick-start",
+        on: "nav",
       },
       {
         text: (
@@ -28,27 +28,18 @@ export function baseOptions(): BaseLayoutProps {
             <ArrowUpRight className="size-4" />
           </span>
         ),
-        url: 'https://canvas.best/',
+        url: canvasUrl,
         external: true,
-        on: 'nav',
+        on: "nav",
       },
       {
-        type: 'icon',
-        text: 'GitHub',
-        label: 'GitHub',
+        type: "icon",
+        text: "GitHub",
+        label: "GitHub",
         url: githubUrl,
         external: true,
-        on: 'menu',
+        on: "menu",
         icon: <img src="/github.svg" alt="" className="size-4" />,
-      },
-      {
-        type: 'icon',
-        text: 'QQ',
-        label: 'QQ',
-        url: qqUrl,
-        external: true,
-        on: 'menu',
-        icon: <img src="/qq.svg" alt="" className="size-4" />,
       },
     ],
   };

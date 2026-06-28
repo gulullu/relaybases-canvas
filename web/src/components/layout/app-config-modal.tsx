@@ -1,7 +1,7 @@
 "use client";
 
 import { App, Button, Form, Input, Modal, Progress, Segmented, Select, Tabs } from "antd";
-import { CircleAlert, Cloud, Plus, RefreshCw, Trash2, Wifi } from "lucide-react";
+import { Cloud, RefreshCw, Wifi } from "lucide-react";
 import { useState } from "react";
 
 import { ModelPicker } from "@/components/model-picker";
@@ -9,14 +9,25 @@ import { fetchChannelModels } from "@/services/api/image";
 import { syncAppDataToWebdav, type AppSyncDomainKey, type AppSyncProgressEvent } from "@/services/app-sync";
 import { testWebdavConnection, WEBDAV_MANIFEST_FILE_NAME } from "@/services/webdav-sync";
 import { audioFormatOptions, audioVoiceOptions, normalizeAudioSpeedValue } from "@/lib/audio-generation";
-import { createModelChannel, defaultBaseUrlForApiFormat, filterModelsByCapability, modelOptionLabel, modelOptionsFromChannels, normalizeModelOptionValue, useConfigStore, type AiConfig, type ApiCallFormat, type ModelCapability, type ModelChannel } from "@/stores/use-config-store";
+import {
+    encodeChannelModel,
+    filterModelsByCapability,
+    modelOptionName,
+    RELAYBASES_RECOMMENDED_IMAGE_KEY_GROUP,
+    RELAYBASES_RECOMMENDED_TEXT_KEY_GROUP,
+    RELAYBASES_SYNC_IMAGE_MODELS,
+    RELAYBASES_TEXT_BASE_URL,
+    RELAYBASES_TEXT_CHANNEL_ID,
+    RELAYBASES_VIDEO_MODELS,
+    useConfigStore,
+    type ModelCapability,
+    type ModelChannel,
+} from "@/stores/use-config-store";
 
 type ModelGroup = {
     capability: ModelCapability;
     modelKey: "imageModel" | "videoModel" | "textModel" | "audioModel";
-    modelsKey: "imageModels" | "videoModels" | "textModels" | "audioModels";
     defaultLabel: string;
-    optionsLabel: string;
 };
 
 type WebdavDomainProgress = {
@@ -28,15 +39,9 @@ type WebdavDomainProgress = {
 };
 
 const modelGroups: ModelGroup[] = [
-    { capability: "image", modelKey: "imageModel", modelsKey: "imageModels", defaultLabel: "默认生图模型", optionsLabel: "生图模型可选项" },
-    { capability: "video", modelKey: "videoModel", modelsKey: "videoModels", defaultLabel: "默认视频模型", optionsLabel: "视频模型可选项" },
-    { capability: "text", modelKey: "textModel", modelsKey: "textModels", defaultLabel: "默认文本模型", optionsLabel: "文本模型可选项" },
-    { capability: "audio", modelKey: "audioModel", modelsKey: "audioModels", defaultLabel: "默认音频模型", optionsLabel: "音频模型可选项" },
-];
-
-const apiFormatOptions: Array<{ label: string; value: ApiCallFormat }> = [
-    { label: "OpenAI", value: "openai" },
-    { label: "Gemini", value: "gemini" },
+    { capability: "image", modelKey: "imageModel", defaultLabel: "默认生图模型" },
+    { capability: "video", modelKey: "videoModel", defaultLabel: "默认视频模型" },
+    { capability: "text", modelKey: "textModel", defaultLabel: "默认文本模型" },
 ];
 
 const webdavDomainKeys: AppSyncDomainKey[] = ["canvas", "assets", "image-workbench", "video-workbench"];
@@ -60,100 +65,62 @@ function createWebdavDomainProgress(): Record<AppSyncDomainKey, WebdavDomainProg
 export function AppConfigModal() {
     const { message } = App.useApp();
     const [activeTab, setActiveTab] = useState("channels");
-    const [loadingChannelId, setLoadingChannelId] = useState("");
     const [testingWebdav, setTestingWebdav] = useState(false);
     const [syncingWebdav, setSyncingWebdav] = useState(false);
+    const [loadingTextModels, setLoadingTextModels] = useState(false);
     const [webdavSyncStatus, setWebdavSyncStatus] = useState("");
     const [webdavDomainProgress, setWebdavDomainProgress] = useState(createWebdavDomainProgress);
     const config = useConfigStore((state) => state.config);
     const webdav = useConfigStore((state) => state.webdav);
     const updateConfig = useConfigStore((state) => state.updateConfig);
+    const updateConfigValues = useConfigStore((state) => state.updateConfigValues);
     const updateWebdavConfig = useConfigStore((state) => state.updateWebdavConfig);
     const isConfigOpen = useConfigStore((state) => state.isConfigOpen);
     const shouldPromptContinue = useConfigStore((state) => state.shouldPromptContinue);
     const setConfigDialogOpen = useConfigStore((state) => state.setConfigDialogOpen);
     const clearPromptContinue = useConfigStore((state) => state.clearPromptContinue);
-    const modelOptions = config.models.map((model) => ({ label: modelOptionLabel(config, model), value: model }));
     const webdavReady = Boolean(webdav.url.trim());
 
-    const saveConfig = (nextConfig: AiConfig) => {
-        (Object.keys(nextConfig) as Array<keyof AiConfig>).forEach((key) => updateConfig(key, nextConfig[key]));
-    };
-
     const finishConfig = () => {
-        const ready = config.channels.some((channel) => channel.baseUrl.trim() && channel.apiKey.trim() && channel.models.length);
+        const ready = Boolean(config.mediaApiKey.trim() || (config.textApiKey.trim() && config.textModel.trim()));
         setConfigDialogOpen(false);
         if (!ready) return;
         message.success(shouldPromptContinue ? "配置已保存，请继续刚才的请求" : "配置已保存");
         clearPromptContinue();
     };
 
-    const updateChannels = (channels: ModelChannel[]) => {
-        const nextConfig = withChannels(config, channels);
-        saveConfig(nextConfig);
-    };
-
-    const updateChannel = (id: string, patch: Partial<ModelChannel>) => {
-        updateChannels(config.channels.map((channel) => (channel.id === id ? { ...channel, ...patch, models: patch.models ? uniqueModels(patch.models) : channel.models } : channel)));
-    };
-
-    const updateChannelApiFormat = (channel: ModelChannel, apiFormat: ApiCallFormat) => {
-        const baseUrl = !channel.baseUrl.trim() || channel.baseUrl.trim() === defaultBaseUrlForApiFormat(channel.apiFormat) ? defaultBaseUrlForApiFormat(apiFormat) : channel.baseUrl;
-        updateChannel(channel.id, { apiFormat, baseUrl });
-    };
-
-    const addChannel = () => {
-        updateChannels([...config.channels, createModelChannel({ name: `渠道 ${config.channels.length + 1}` })]);
-    };
-
-    const deleteChannel = (id: string) => {
-        if (config.channels.length <= 1) {
-            message.warning("至少保留一个渠道");
+    const refreshTextModels = async () => {
+        const apiKey = config.textApiKey.trim();
+        if (!apiKey) {
+            message.error("请先填写文本 API Key");
             return;
         }
-        updateChannels(config.channels.filter((channel) => channel.id !== id));
-    };
-
-    const refreshChannelModels = async (channel: ModelChannel) => {
-        if (!channel.baseUrl.trim() || !channel.apiKey.trim()) {
-            message.error("请先填写该渠道的 Base URL 和 API Key");
-            return;
-        }
-        setLoadingChannelId(channel.id);
+        setLoadingTextModels(true);
         try {
-            const models = await fetchChannelModels(channel);
-            updateChannels(config.channels.map((item) => (item.id === channel.id ? { ...item, models } : item)));
-            message.success(`${channel.name} 模型列表已更新`);
+            const channel: ModelChannel = {
+                id: RELAYBASES_TEXT_CHANNEL_ID,
+                name: "RelayBases Text",
+                baseUrl: RELAYBASES_TEXT_BASE_URL,
+                apiKey,
+                apiFormat: "openai",
+                models: [],
+            };
+            const models = filterModelsByCapability(await fetchChannelModels(channel), "text");
+            if (!models.length) {
+                updateConfigValues({ textModels: [], textModel: "" });
+                message.warning("未获取到可用的文本模型");
+                return;
+            }
+            const textModels = models.map((model) => encodeChannelModel(RELAYBASES_TEXT_CHANNEL_ID, model));
+            const recommendedTextModel = textModels.find((model) => modelOptionName(model).toLowerCase().includes(RELAYBASES_RECOMMENDED_TEXT_KEY_GROUP)) || textModels[0];
+            const textModel = textModels.includes(config.textModel) ? config.textModel : recommendedTextModel;
+            updateConfigValues({ textModels, textModel });
+            message.success(`已获取 ${models.length} 个文本模型，默认使用 ${modelOptionName(textModel)}。建议文本 Key 使用 ${RELAYBASES_RECOMMENDED_TEXT_KEY_GROUP} 分组。`);
         } catch (error) {
-            message.error(error instanceof Error ? error.message : "读取模型失败");
+            message.error(error instanceof Error ? error.message : "读取文本模型失败");
         } finally {
-            setLoadingChannelId("");
+            setLoadingTextModels(false);
         }
-    };
-
-    const refreshAllModels = async () => {
-        const runnable = config.channels.filter((channel) => channel.baseUrl.trim() && channel.apiKey.trim());
-        if (!runnable.length) {
-            message.error("请先填写至少一个渠道的 Base URL 和 API Key");
-            return;
-        }
-        setLoadingChannelId("all");
-        try {
-            const entries = await Promise.all(runnable.map(async (channel) => [channel.id, await fetchChannelModels(channel)] as const));
-            const modelMap = new Map(entries);
-            updateChannels(config.channels.map((channel) => (modelMap.has(channel.id) ? { ...channel, models: modelMap.get(channel.id) || [] } : channel)));
-            message.success("模型列表已更新");
-        } catch (error) {
-            message.error(error instanceof Error ? error.message : "读取模型失败");
-        } finally {
-            setLoadingChannelId("");
-        }
-    };
-
-    const updateCapabilityModels = (group: ModelGroup, models: string[]) => {
-        const next = uniqueModels(models.map((model) => normalizeModelOptionValue(model, config.channels)).filter(Boolean));
-        updateConfig(group.modelsKey, next);
-        if (!next.includes(config[group.modelKey])) updateConfig(group.modelKey, next[0] || "");
     };
 
     const testWebdav = async () => {
@@ -212,7 +179,7 @@ export function AppConfigModal() {
             title={
                 <div>
                     <div className="text-lg font-semibold">配置与用户偏好</div>
-                    <div className="mt-1 text-xs font-normal text-stone-500">渠道聚合、模型选择和同步偏好</div>
+                    <div className="mt-1 text-xs font-normal text-stone-500">媒体 API Key、文本 API Key、推荐分组和默认模型</div>
                 </div>
             }
             open={isConfigOpen}
@@ -232,65 +199,79 @@ export function AppConfigModal() {
                 items={[
                     {
                         key: "channels",
-                        label: "渠道",
+                        label: "RelayBases",
                         children: (
                             <Form layout="vertical" requiredMark={false}>
-                                <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-stone-200 p-3 dark:border-stone-800">
-                                    <div className="min-w-0 flex-1">
-                                        <div className="flex w-fit max-w-full flex-wrap items-center gap-1.5 rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-xs text-amber-900 dark:border-amber-700/60 dark:bg-amber-950/30 dark:text-amber-100">
-                                            <CircleAlert className="size-3.5 shrink-0" />
-                                            <span className="font-semibold">重要：</span>
-                                            <span>新增或拉取模型后，需要到“模型”Tab 选择可选项才会显示。</span>
-                                            <Button type="link" size="small" className="h-auto p-0 text-xs font-semibold text-amber-900 dark:text-amber-100" onClick={() => setActiveTab("models")}>
-                                                去模型设置
-                                            </Button>
+                                <div className="grid gap-4 md:grid-cols-2">
+                                    <div className="grid content-start gap-3">
+                                        <div className="rounded-lg border border-stone-200 p-3 text-sm dark:border-stone-800">
+                                            <Form.Item label="媒体 API Key" extra={`用于图片和视频生成。建议在主站用 ${RELAYBASES_RECOMMENDED_IMAGE_KEY_GROUP} 分组创建媒体 Key；视频与异步任务按 4x 计费。`} className="mb-3">
+                                                <Input.Password value={config.mediaApiKey} onChange={(event) => updateConfig("mediaApiKey", event.target.value)} placeholder="sk-..." />
+                                            </Form.Item>
+                                            <div className="flex flex-wrap gap-2 text-xs">
+                                                <span className="rounded-full border border-emerald-300 bg-emerald-50 px-2.5 py-1 text-emerald-800 dark:border-emerald-700/60 dark:bg-emerald-950/30 dark:text-emerald-100">生图推荐 gpt-image-2 分组</span>
+                                                <span className="rounded-full border border-stone-200 bg-stone-50 px-2.5 py-1 text-stone-700 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-200">同步图默认 gpt-image-2</span>
+                                                <span className="rounded-full border border-amber-300 bg-amber-50 px-2.5 py-1 text-amber-900 dark:border-amber-700/60 dark:bg-amber-950/30 dark:text-amber-100">异步任务 4x 计费</span>
+                                            </div>
+                                        </div>
+                                        <div className="rounded-lg border border-stone-200 p-3 text-sm dark:border-stone-800">
+                                            <div className="font-semibold">同步图片模型</div>
+                                            <div className="mt-2 flex flex-wrap gap-1.5">
+                                                {RELAYBASES_SYNC_IMAGE_MODELS.map((model) => (
+                                                    <span key={model} className="rounded-md bg-stone-100 px-2 py-1 font-mono text-xs dark:bg-stone-900">
+                                                        {model}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        </div>
+                                        <div className="rounded-lg border border-amber-200 p-3 text-sm dark:border-amber-900/70">
+                                            <div className="font-semibold">异步视频任务</div>
+                                            <div className="mt-1 text-xs text-amber-700 dark:text-amber-200">按 4x 计费。</div>
+                                            <div className="mt-2 flex flex-wrap gap-1.5">
+                                                {RELAYBASES_VIDEO_MODELS.map((model) => (
+                                                    <span key={model} className="rounded-md bg-amber-50 px-2 py-1 font-mono text-xs text-amber-900 dark:bg-amber-950/30 dark:text-amber-100">
+                                                        {model}
+                                                    </span>
+                                                ))}
+                                            </div>
                                         </div>
                                     </div>
-                                    <div className="flex shrink-0 gap-2">
-                                        <Button icon={<RefreshCw className="size-4" />} loading={Boolean(loadingChannelId)} onClick={() => void refreshAllModels()}>
-                                            拉取全部
-                                        </Button>
-                                        <Button type="primary" icon={<Plus className="size-4" />} onClick={addChannel}>
-                                            新增渠道
-                                        </Button>
-                                    </div>
-                                </div>
-                                <div className="space-y-3">
-                                    {config.channels.map((channel) => (
-                                        <section key={channel.id} className="rounded-lg border border-stone-200 p-3 dark:border-stone-800">
-                                            <div className="mb-3 flex items-center justify-between gap-3">
-                                                <div className="min-w-0">
-                                                    <div className="truncate text-sm font-semibold">{channel.name || "未命名渠道"}</div>
-                                                    <div className="mt-1 text-xs text-stone-500">
-                                                        {apiFormatLabel(channel.apiFormat)} · 已保存 {channel.models.length} 个模型
-                                                    </div>
-                                                </div>
-                                                <div className="flex shrink-0 gap-2">
-                                                    <Button size="small" loading={loadingChannelId === channel.id} onClick={() => void refreshChannelModels(channel)}>
-                                                        拉取模型
+                                    <div className="grid content-start gap-3">
+                                        <div className="rounded-lg border border-stone-200 p-3 text-sm dark:border-stone-800">
+                                            <Form.Item label="文本 API Key" extra={`用于 Agent、图片反推提示词和文本生成。建议用 ${RELAYBASES_RECOMMENDED_TEXT_KEY_GROUP} 分组创建文本 Key，其它文本分组也可用。`} className="mb-3">
+                                                <div className="flex gap-2">
+                                                    <Input.Password className="min-w-0 flex-1" value={config.textApiKey} onChange={(event) => updateConfigValues({ textApiKey: event.target.value, textModels: [], textModel: "" })} placeholder="sk-..." />
+                                                    <Button icon={<RefreshCw className="size-4" />} disabled={!config.textApiKey.trim()} loading={loadingTextModels} onClick={() => void refreshTextModels()}>
+                                                        获取模型
                                                     </Button>
-                                                    <Button size="small" danger icon={<Trash2 className="size-3.5" />} onClick={() => deleteChannel(channel.id)} />
                                                 </div>
+                                            </Form.Item>
+                                            <div className="mb-3 flex flex-wrap gap-2 text-xs">
+                                                <span className="rounded-full border border-blue-300 bg-blue-50 px-2.5 py-1 text-blue-800 dark:border-blue-700/60 dark:bg-blue-950/30 dark:text-blue-100">推荐 codex-pro 分组</span>
+                                                <span className="rounded-full border border-stone-200 bg-stone-50 px-2.5 py-1 text-stone-700 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-200">其它文本分组可用</span>
                                             </div>
-                                            <div className="grid gap-4 md:grid-cols-2">
-                                                <Form.Item label="渠道名称" className="mb-0">
-                                                    <Input value={channel.name} onChange={(event) => updateChannel(channel.id, { name: event.target.value })} />
-                                                </Form.Item>
-                                                <Form.Item label="调用格式" className="mb-0">
-                                                    <Select value={channel.apiFormat} options={apiFormatOptions} onChange={(value: ApiCallFormat) => updateChannelApiFormat(channel, value)} />
-                                                </Form.Item>
-                                                <Form.Item label="Base URL" className="mb-0">
-                                                    <Input value={channel.baseUrl} onChange={(event) => updateChannel(channel.id, { baseUrl: event.target.value })} />
-                                                </Form.Item>
-                                                <Form.Item label="API Key" className="mb-0">
-                                                    <Input.Password value={channel.apiKey} onChange={(event) => updateChannel(channel.id, { apiKey: event.target.value })} />
-                                                </Form.Item>
-                                                <Form.Item label="模型列表" className="mb-0 md:col-span-2">
-                                                    <Select mode="tags" showSearch allowClear maxTagCount="responsive" placeholder="输入模型名，或点击拉取模型" value={channel.models} onChange={(models) => updateChannel(channel.id, { models })} />
-                                                </Form.Item>
+                                            <div className="text-xs text-stone-500">
+                                                {config.textModels.length ? `已获取 ${config.textModels.length} 个文本模型，默认 ${modelOptionName(config.textModel)}` : "填写文本 API Key 后获取模型；若返回列表包含 codex-pro，会优先使用 codex-pro，否则使用返回列表第一个。"}
                                             </div>
-                                        </section>
-                                    ))}
+                                        </div>
+                                        <div className="rounded-lg border border-stone-200 p-3 text-sm dark:border-stone-800">
+                                            <Form.Item label="默认文本模型" className="mb-3">
+                                                <ModelPicker config={config} value={config.textModel} onChange={(model) => updateConfig("textModel", model)} capability="text" fullWidth />
+                                            </Form.Item>
+                                            <div className="font-semibold">文本模型</div>
+                                            <div className="mt-2 flex flex-wrap gap-1.5">
+                                                {config.textModels.length ? (
+                                                    config.textModels.map((model) => (
+                                                        <span key={model} className="rounded-md bg-stone-100 px-2 py-1 font-mono text-xs dark:bg-stone-900">
+                                                            {modelOptionName(model)}
+                                                        </span>
+                                                    ))
+                                                ) : (
+                                                    <span className="text-xs text-stone-500">暂无文本模型</span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </Form>
                         ),
@@ -301,26 +282,10 @@ export function AppConfigModal() {
                         children: (
                             <Form layout="vertical" requiredMark={false}>
                                 <div className="mb-4 rounded-lg border border-stone-200 p-3 dark:border-stone-800">
-                                    <div className="text-sm font-semibold">默认模型和可选项</div>
-                                    <div className="mt-1 text-xs leading-5 text-stone-500">可选项决定各处下拉框展示哪些模型；同名模型会以括号里的渠道名区分。</div>
+                                    <div className="text-sm font-semibold">默认模型</div>
+                                    <div className="mt-1 text-xs leading-5 text-stone-500">生图默认使用同步接口；视频模型会提交异步任务并按 4x 计费；文本模型用于 Agent 和文本节点。</div>
                                 </div>
-                                <div className="grid gap-4 md:grid-cols-2">
-                                    {modelGroups.map((group) => (
-                                        <Form.Item key={group.modelsKey} label={group.optionsLabel} className="mb-0">
-                                            <Select
-                                                mode="tags"
-                                                showSearch
-                                                allowClear
-                                                maxTagCount="responsive"
-                                                placeholder={config.models.length ? `请选择或输入${group.optionsLabel}` : "先到渠道里填写或拉取模型"}
-                                                value={config[group.modelsKey]}
-                                                options={modelOptions}
-                                                onChange={(models) => updateCapabilityModels(group, models)}
-                                            />
-                                        </Form.Item>
-                                    ))}
-                                </div>
-                                <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                                <div className="grid gap-4 md:grid-cols-3">
                                     {modelGroups.map((group) => (
                                         <Form.Item key={group.modelKey} label={group.defaultLabel} className="mb-0">
                                             <ModelPicker config={config} value={config[group.modelKey]} onChange={(model) => updateConfig(group.modelKey, model)} capability={group.capability} fullWidth />
@@ -434,51 +399,8 @@ export function AppConfigModal() {
     );
 }
 
-function withChannels(config: AiConfig, channels: ModelChannel[]): AiConfig {
-    const models = modelOptionsFromChannels(channels);
-    const imageModels = keepOrSuggest(config.imageModels, filterModelsByCapability(models, "image"), models);
-    const videoModels = keepOrSuggest(config.videoModels, filterModelsByCapability(models, "video"), models);
-    const textModels = keepOrSuggest(config.textModels, filterModelsByCapability(models, "text"), models);
-    const audioModels = keepOrSuggest(config.audioModels, filterModelsByCapability(models, "audio"), models);
-    return {
-        ...config,
-        channels,
-        models,
-        baseUrl: channels[0]?.baseUrl || config.baseUrl,
-        apiKey: channels[0]?.apiKey || config.apiKey,
-        apiFormat: channels[0]?.apiFormat || config.apiFormat,
-        imageModels,
-        videoModels,
-        textModels,
-        audioModels,
-        imageModel: normalizeDefaultModel(config.imageModel, imageModels),
-        videoModel: normalizeDefaultModel(config.videoModel, videoModels),
-        textModel: normalizeDefaultModel(config.textModel, textModels),
-        audioModel: normalizeDefaultModel(config.audioModel, audioModels),
-    };
-}
-
-function keepOrSuggest(current: string[], suggested: string[], allModels: string[]) {
-    const available = new Set(allModels);
-    const kept = uniqueModels(current).filter((model) => available.has(model));
-    return kept.length ? kept : suggested;
-}
-
-function normalizeDefaultModel(value: string, options: string[]) {
-    if (options.includes(value)) return value;
-    return options[0] || value;
-}
-
 function normalizeImageCount(value: string) {
     return String(Math.max(1, Math.min(15, Math.floor(Math.abs(Number(value)) || 3))));
-}
-
-function uniqueModels(models: string[]) {
-    return Array.from(new Set(models.map((model) => model.trim()).filter(Boolean)));
-}
-
-function apiFormatLabel(apiFormat: ApiCallFormat) {
-    return apiFormat === "gemini" ? "Gemini" : "OpenAI";
 }
 
 function formatWebdavTime(value: string) {

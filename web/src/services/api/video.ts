@@ -1,6 +1,6 @@
 import axios from "axios";
 
-import { dataUrlToFile } from "@/lib/image-utils";
+import { getDataUrlByteSize } from "@/lib/image-utils";
 import { getMediaBlob, uploadMediaFile, type UploadedFile } from "@/services/file-storage";
 import { imageToDataUrl } from "@/services/image-storage";
 import { boolConfig, buildSeedancePromptText, isSeedanceVideoConfig, normalizeSeedanceDuration, normalizeSeedanceRatio, normalizeSeedanceResolution, seedanceVideoReferenceError, SEEDANCE_REFERENCE_LIMITS } from "@/lib/seedance-video";
@@ -8,7 +8,18 @@ import { buildApiUrl, modelOptionName, resolveModelRequestConfig, type AiConfig 
 import type { ReferenceImage } from "@/types/image";
 import type { ReferenceAudio, ReferenceVideo } from "@/types/media";
 
-type VideoResponse = { id: string; status?: string; error?: { message?: string } };
+type VideoResponse = {
+    id?: string;
+    task_id?: string;
+    status?: string;
+    task_status?: string;
+    progress?: number;
+    image_url?: string | null;
+    video_url?: string | null;
+    url?: string | null;
+    result_urls?: string[];
+    error?: { message?: string };
+};
 type ApiVideoResponse = VideoResponse | { code?: number; data?: VideoResponse | null; msg?: string };
 type SeedanceTask = {
     id: string;
@@ -18,6 +29,10 @@ type SeedanceTask = {
 };
 type ApiEnvelope<T> = T | { code?: number; data?: T | null; msg?: string };
 type RequestOptions = { signal?: AbortSignal };
+const RELAYBASES_IMAGE_DATA_URL_LIMIT_BYTES = 500 * 1024;
+const RELAYBASES_IMAGE_DATA_URL_TARGET_BYTES = 480 * 1024;
+const RELAYBASES_IMAGE_MAX_EDGE = 1536;
+const RELAYBASES_IMAGE_MIN_EDGE = 256;
 
 export type VideoGenerationResult = { blob?: Blob; url?: string; mimeType?: string };
 export type VideoGenerationTask = { id: string; provider: "openai" | "seedance"; model: string };
@@ -49,16 +64,13 @@ export async function requestVideoGeneration(config: AiConfig, prompt: string, r
 }
 
 export async function createVideoGenerationTask(config: AiConfig, prompt: string, references: ReferenceImage[] = [], videoReferences: ReferenceVideo[] = [], audioReferences: ReferenceAudio[] = [], options?: RequestOptions): Promise<VideoGenerationTask> {
-    const selectedModel = (config.model || config.videoModel).trim();
+    const selectedModel = (config.videoModel || config.model).trim();
     const requestConfig = resolveModelRequestConfig(config, selectedModel);
     assertVideoConfig(requestConfig, requestConfig.model);
     if (isSeedanceVideoConfig(requestConfig)) {
         return createSeedanceTask(requestConfig, selectedModel, prompt, references, videoReferences, audioReferences, options);
     }
-    if (videoReferences.length || audioReferences.length) {
-        throw new Error("当前视频接口不支持参考视频或参考音频，请切换到 Seedance 2.0 / 火山 Agent Plan 模型，或移除参考素材");
-    }
-    return createOpenAIVideoTask(requestConfig, selectedModel, prompt, references, options);
+    return createOpenAIVideoTask(requestConfig, selectedModel, prompt, references, videoReferences, audioReferences, options);
 }
 
 export async function pollVideoGenerationTask(config: AiConfig, task: VideoGenerationTask, options?: RequestOptions): Promise<VideoGenerationTaskState> {
@@ -73,34 +85,125 @@ export async function storeGeneratedVideo(result: VideoGenerationResult): Promis
     throw new Error("视频接口没有返回可播放的视频");
 }
 
-async function createOpenAIVideoTask(config: AiConfig, model: string, prompt: string, references: ReferenceImage[], options?: RequestOptions): Promise<VideoGenerationTask> {
-    const body = new FormData();
-    body.append("model", modelOptionName(model));
-    body.append("prompt", prompt);
-    body.append("seconds", normalizeVideoSeconds(config.videoSeconds));
-    if (normalizeVideoSize(config.size)) body.append("size", normalizeVideoSize(config.size)!);
-    body.append("resolution_name", normalizeVideoResolution(config.vquality));
-    body.append("preset", "normal");
-    const files = await Promise.all(references.slice(0, 7).map(async (image) => dataUrlToFile({ ...image, dataUrl: await imageToDataUrl(image) })));
-    files.forEach((file) => body.append("input_reference[]", file));
+async function createOpenAIVideoTask(config: AiConfig, model: string, prompt: string, references: ReferenceImage[], videoReferences: ReferenceVideo[], audioReferences: ReferenceAudio[], options?: RequestOptions): Promise<VideoGenerationTask> {
+    const body = await buildRelayBasesVideoPayload(config, model, prompt, references, videoReferences, audioReferences);
     try {
-        const created = unwrapVideoResponse((await axios.post<ApiVideoResponse>(aiApiUrl(config, "/videos"), body, { headers: aiHeaders(config), signal: options?.signal })).data);
-        if (!created.id) throw new Error("视频接口没有返回任务 ID");
-        return { id: created.id, provider: "openai", model };
+        const created = unwrapVideoResponse((await axios.post<ApiVideoResponse>(aiApiUrl(config, "/videos"), body, { headers: aiHeaders(config, "application/json"), signal: options?.signal })).data);
+        const id = created.task_id || created.id;
+        if (!id) throw new Error("视频接口没有返回任务 ID");
+        return { id, provider: "openai", model };
     } catch (error) {
         throw new Error(readAxiosError(error, "视频任务创建失败"));
     }
 }
 
+async function buildRelayBasesVideoPayload(config: AiConfig, model: string, prompt: string, references: ReferenceImage[], videoReferences: ReferenceVideo[], audioReferences: ReferenceAudio[]) {
+    const modelName = modelOptionName(model);
+    const images = await Promise.all(references.map((image) => resolveRelayBasesImageUrl(config, image)));
+    const videos = await Promise.all(videoReferences.map(resolveSeedanceVideoUrl));
+    const audios = await Promise.all(audioReferences.map(resolveSeedanceAudioUrl));
+    const payload: Record<string, unknown> = {
+        model: modelName,
+        prompt,
+        duration: normalizeRelayBasesDuration(config.videoSeconds, modelName),
+        aspect_ratio: normalizeRelayBasesAspectRatio(config.size),
+    };
+
+    if (modelName === "veo-omni-flash-video-edit") {
+        if (!videos[0]) throw new Error("视频编辑需要连接一个参考视频");
+        payload.video_url = videos[0];
+        if (images.length) payload.Ingredients_images = images.slice(0, 6);
+        return payload;
+    }
+
+    if (modelName === "veo-omni-flash") {
+        if (images.length) payload.Ingredients_images = images.slice(0, 6);
+        return payload;
+    }
+
+    if (modelName === "video-fast-720p" || modelName === "video-pro-720p" || modelName === "video-pro-1080p") {
+        if (images[0]) payload.image_url = images[0];
+        if (images.length > 1) payload.extra_images = images.slice(1);
+        if (videos.length) payload.extra_videos = videos;
+        if (audios.length) payload.extra_audios = audios;
+        return payload;
+    }
+
+    if (images.length) payload.images = images.slice(0, 9);
+    return payload;
+}
+
+async function resolveRelayBasesImageUrl(config: AiConfig, image: ReferenceImage) {
+    const directUrl = image.url || image.dataUrl || "";
+    if (isPublicMediaUrl(directUrl) || directUrl.startsWith("asset://")) return directUrl;
+    const dataUrl = directUrl.startsWith("data:") ? directUrl : await imageToDataUrl(image);
+    if (!dataUrl) throw new Error("参考图读取失败，请换一张图片或重新上传");
+    return compressRelayBasesImageDataUrl(dataUrl);
+}
+
+async function compressRelayBasesImageDataUrl(dataUrl: string) {
+    if (!dataUrl.startsWith("data:image/") || getDataUrlByteSize(dataUrl) <= RELAYBASES_IMAGE_DATA_URL_LIMIT_BYTES) return dataUrl;
+
+    const image = await loadImageElement(dataUrl);
+    const sourceWidth = image.naturalWidth || image.width || 1024;
+    const sourceHeight = image.naturalHeight || image.height || 1024;
+    const sourceLongEdge = Math.max(sourceWidth, sourceHeight);
+    const qualities = [0.82, 0.72, 0.62, 0.52, 0.42, 0.34, 0.26];
+    let edge = Math.min(sourceLongEdge, RELAYBASES_IMAGE_MAX_EDGE);
+    let smallest = dataUrl;
+
+    while (edge >= RELAYBASES_IMAGE_MIN_EDGE) {
+        const scale = Math.min(1, edge / sourceLongEdge);
+        const width = Math.max(1, Math.round(sourceWidth * scale));
+        const height = Math.max(1, Math.round(sourceHeight * scale));
+
+        for (const quality of qualities) {
+            const compressed = await drawImageDataUrl(image, width, height, quality);
+            if (getDataUrlByteSize(compressed) < getDataUrlByteSize(smallest)) smallest = compressed;
+            if (getDataUrlByteSize(compressed) <= RELAYBASES_IMAGE_DATA_URL_TARGET_BYTES) return compressed;
+        }
+
+        edge = Math.floor(edge * 0.78);
+    }
+
+    if (getDataUrlByteSize(smallest) <= RELAYBASES_IMAGE_DATA_URL_LIMIT_BYTES) return smallest;
+    throw new Error("参考图压缩后仍超过 VEO 500KB 限制，请换一张更小的图，或使用公网图片 URL");
+}
+
+function normalizeRelayBasesDuration(value: string, model: string) {
+    if (model === "veo-3-1") return 8;
+    if (model === "veo-omni-flash" || model === "veo-omni-flash-video-edit") return 10;
+    if (model === "nana-banana-2" || model === "nana-banana-pro") return 4;
+    const seconds = Math.floor(Number(value) || 6);
+    return Math.max(4, Math.min(15, seconds));
+}
+
+function normalizeRelayBasesAspectRatio(value: string) {
+    if (!value || value === "auto" || value === "adaptive") return "16:9";
+    if (/^\d+:\d+$/.test(value)) return value;
+    const match = value.match(/^(\d+)x(\d+)$/);
+    if (!match) return "16:9";
+    const width = Number(match[1]);
+    const height = Number(match[2]);
+    if (!width || !height) return "16:9";
+    if (width === height) return "1:1";
+    return width > height ? "16:9" : "9:16";
+}
+
+function readRelayBasesResultUrl(video: VideoResponse) {
+    return video.video_url || video.url || video.result_urls?.find(Boolean) || video.image_url || "";
+}
+
 async function pollOpenAIVideoTask(config: AiConfig, task: VideoGenerationTask, options?: RequestOptions): Promise<VideoGenerationTaskState> {
     try {
         const video = unwrapVideoResponse((await axios.get<ApiVideoResponse>(aiApiUrl(config, `/videos/${task.id}`), { headers: aiHeaders(config), signal: options?.signal })).data);
-        if (video.status === "completed") {
-            const content = await axios.get<Blob>(aiApiUrl(config, `/videos/${task.id}/content`), { headers: aiHeaders(config), responseType: "blob", signal: options?.signal });
-            await assertVideoBlob(content.data);
-            return { status: "completed", result: { blob: content.data } };
+        const status = video.task_status || video.status;
+        if (status === "completed" || status === "succeeded") {
+            const url = readRelayBasesResultUrl(video);
+            if (!url) return { status: "failed", error: "视频任务完成但没有返回结果 URL" };
+            return { status: "completed", result: await videoResultFromUrl(url, options) };
         }
-        if (video.status === "failed" || video.status === "cancelled") return { status: "failed", error: video.error?.message || "视频生成失败" };
+        if (status === "failed" || status === "cancelled" || status === "expired") return { status: "failed", error: video.error?.message || "视频生成失败" };
         return { status: "pending" };
     } catch (error) {
         throw new Error(readAxiosError(error, "视频任务查询失败"));
@@ -230,28 +333,9 @@ async function videoResultFromUrl(url: string, options?: RequestOptions): Promis
 
 function assertVideoConfig(config: AiConfig, model: string) {
     if (!model) throw new Error("请先配置视频模型");
-    if (!config.baseUrl.trim()) throw new Error("请先配置 Base URL");
+    if (!config.baseUrl.trim()) throw new Error("请先完成 RelayBases 配置");
     if (!config.apiKey.trim()) throw new Error("请先配置 API Key");
     if (config.apiFormat === "gemini") throw new Error("Gemini 调用格式暂不支持视频生成，请使用 OpenAI 格式渠道");
-}
-
-function normalizeVideoSeconds(value: string) {
-    const seconds = Math.floor(Number(value) || 6);
-    return String(Math.max(1, Math.min(20, seconds)));
-}
-
-function normalizeVideoSize(value: string) {
-    if (value === "auto") return null;
-    const size = value || "1280x720";
-    if (/^\d+x\d+$/.test(size)) return size;
-    return ["9:16", "2:3", "3:4"].includes(size) ? "720x1280" : "1280x720";
-}
-
-function normalizeVideoResolution(value: string) {
-    if (value === "low") return "480p";
-    if (value === "auto" || value === "high" || value === "medium") return "720p";
-    const resolution = value.replace(/p$/i, "") || "720";
-    return `${resolution}p`;
 }
 
 function unwrapVideoResponse(payload: ApiVideoResponse) {
@@ -328,5 +412,35 @@ function blobToDataUrl(blob: Blob) {
         reader.onload = () => resolve(String(reader.result || ""));
         reader.onerror = () => reject(new Error("读取本地素材失败"));
         reader.readAsDataURL(blob);
+    });
+}
+
+function loadImageElement(src: string) {
+    return new Promise<HTMLImageElement>((resolve, reject) => {
+        const image = new Image();
+        image.onload = () => resolve(image);
+        image.onerror = () => reject(new Error("参考图压缩失败，请换一张图片或重新上传"));
+        image.src = src;
+    });
+}
+
+function drawImageDataUrl(image: HTMLImageElement, width: number, height: number, quality: number) {
+    return new Promise<string>((resolve) => {
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const context = canvas.getContext("2d");
+        if (!context) return resolve(image.src);
+        context.fillStyle = "#fff";
+        context.fillRect(0, 0, width, height);
+        context.drawImage(image, 0, 0, width, height);
+        canvas.toBlob(
+            (blob) => {
+                if (!blob) return resolve(canvas.toDataURL("image/jpeg", quality));
+                resolve(blobToDataUrl(blob));
+            },
+            "image/jpeg",
+            quality,
+        );
     });
 }

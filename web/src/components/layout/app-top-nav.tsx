@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { navigationTools, type NavigationToolSlug } from "@/constant/navigation-tools";
+import { RELAYBASES_HOME_URL, relayBasesLinks } from "@/constant/relaybases-links";
 import { AppConfigModal } from "@/components/layout/app-config-modal";
 import { MobileNavDrawer } from "@/components/layout/mobile-nav-drawer";
 import { UserStatusActions } from "@/components/layout/user-status-actions";
@@ -24,14 +25,23 @@ export function AppTopNav() {
                 <header className="sticky top-0 z-20 h-16 shrink-0 border-b border-stone-200 bg-background/90 backdrop-blur-xl dark:border-stone-800">
                     <div className="mx-auto flex h-full max-w-7xl items-stretch justify-between gap-5 px-6">
                         <div className="flex min-w-0 items-center">
-                            <Link href="/" className="flex h-full shrink-0 items-center gap-2 text-sm font-semibold leading-none tracking-tight text-stone-950 transition hover:text-stone-600 dark:text-stone-100 dark:hover:text-stone-300">
+                            <a
+                                href={RELAYBASES_HOME_URL}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex h-full shrink-0 items-center gap-2 text-sm font-semibold leading-none tracking-tight text-stone-950 transition hover:text-stone-600 dark:text-stone-100 dark:hover:text-stone-300"
+                            >
                                 <span
-                                    className="size-5 shrink-0 bg-current"
+                                    className="size-6 shrink-0 bg-current"
                                     style={{
-                                        mask: "url(/logo.svg) center / contain no-repeat",
-                                        WebkitMask: "url(/logo.svg) center / contain no-repeat",
+                                        mask: "url(/relaybases-mark.svg) center / contain no-repeat",
+                                        WebkitMask: "url(/relaybases-mark.svg) center / contain no-repeat",
                                     }}
                                 />
+                                <span className="text-base font-semibold">RelayBases</span>
+                            </a>
+                            <span className="mx-3 hidden h-5 w-px shrink-0 bg-stone-200 sm:block dark:bg-stone-800" />
+                            <Link href="/" className="flex h-full shrink-0 items-center text-sm font-semibold leading-none tracking-tight text-stone-950 transition hover:text-stone-600 dark:text-stone-100 dark:hover:text-stone-300">
                                 <span className="text-base font-medium">无限画布</span>
                             </Link>
 
@@ -69,6 +79,24 @@ export function AppTopNav() {
                         </div>
 
                         <div className="my-auto flex h-9 min-w-0 items-center justify-end gap-2 justify-self-end whitespace-nowrap">
+                            <nav className="mr-1 hidden items-center gap-1 xl:flex" aria-label="RelayBases 主站导航">
+                                {relayBasesLinks.map((link) => (
+                                    <a
+                                        key={link.href}
+                                        href={link.href}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className={cn(
+                                            "rounded-full px-3 py-1.5 text-sm leading-none transition",
+                                            "primary" in link && link.primary
+                                                ? "bg-stone-950 text-white hover:bg-stone-800 dark:bg-white dark:text-stone-950 dark:hover:bg-stone-200"
+                                                : "text-stone-500 hover:bg-stone-100 hover:text-stone-950 dark:text-stone-400 dark:hover:bg-stone-900 dark:hover:text-stone-100",
+                                        )}
+                                    >
+                                        {link.label}
+                                    </a>
+                                ))}
+                            </nav>
                             <UserStatusActions />
                         </div>
                     </div>

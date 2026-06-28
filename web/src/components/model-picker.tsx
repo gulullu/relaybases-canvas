@@ -5,7 +5,7 @@ import { Cpu } from "lucide-react";
 
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { modelOptionLabel, modelOptionName, selectableModelsByCapability, type AiConfig, type ModelCapability } from "@/stores/use-config-store";
+import { modelOptionLabel, modelOptionName, relayBasesModelBillingLabel, selectableModelsByCapability, type AiConfig, type ModelCapability } from "@/stores/use-config-store";
 
 type ModelPickerProps = {
     config: AiConfig;
@@ -21,7 +21,10 @@ type ModelPickerProps = {
 export function ModelPicker({ config, value, onChange, capability, className, fullWidth = false, placeholder = "选择模型", onMissingConfig }: ModelPickerProps) {
     const pickerId = useId();
     const [open, setOpen] = useState(false);
-    const options = useMemo(() => Array.from(new Set([...(config.channelMode === "local" && !capability ? [value] : []), ...selectableModelsByCapability(config, capability)].filter((model): model is string => Boolean(model)))), [capability, config, value]);
+    const options = useMemo(
+        () => Array.from(new Set([...(config.channelMode === "local" && !capability ? [value] : []), ...selectableModelsByCapability(config, capability)].filter((model): model is string => Boolean(model)))),
+        [capability, config, value],
+    );
     const current = value || "";
 
     useEffect(() => {
@@ -85,15 +88,27 @@ export function ModelPicker({ config, value, onChange, capability, className, fu
 
 function emptyModelLabel(config: AiConfig, capability?: ModelCapability) {
     const label = capability === "image" ? "生图" : capability === "video" ? "视频" : capability === "text" ? "文本" : capability === "audio" ? "音频" : "";
+    if (capability === "text" && !config.textModels.length) return "请先填写文本 API Key 并获取模型";
     if (capability && config.models.length) return "请先在上方配置可选模型";
-    return config.models.length ? `暂无匹配的${label}模型` : "请先到配置里添加渠道和模型";
+    return config.models.length ? `暂无匹配的${label}模型` : "请先填写 API Key 并获取模型";
 }
 
 function ModelLabel({ config, model }: { config: AiConfig; model: string }) {
+    const billing = relayBasesModelBillingLabel(model);
     return (
         <span className="flex min-w-0 items-center gap-2">
             <ModelIcon model={model} />
             <span className="truncate">{modelOptionLabel(config, model)}</span>
+            {billing ? (
+                <span
+                    className={cn(
+                        "ml-auto shrink-0 rounded-full px-2 py-0.5 text-[10px] leading-none",
+                        billing.includes("Async") ? "bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-100" : "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-100",
+                    )}
+                >
+                    {billing}
+                </span>
+            ) : null}
         </span>
     );
 }
