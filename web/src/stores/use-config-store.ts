@@ -310,7 +310,7 @@ export function isRelayBasesAsyncTaskModel(model: string) {
 }
 
 export function relayBasesModelBillingLabel(model: string) {
-    if (isRelayBasesAsyncTaskModel(model)) return "Async 4x";
+    if (isRelayBasesAsyncTaskModel(model)) return "异步·4倍扣费";
     if (isRelayBasesSyncImageModel(model)) return "Sync";
     return "";
 }

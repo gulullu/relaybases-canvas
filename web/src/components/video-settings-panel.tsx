@@ -70,7 +70,7 @@ export function VideoSettingsPanel({ config, onConfigChange, theme, showTitle = 
                                 同步
                             </OptionPill>
                             <OptionPill selected={videoCallMode === "async"} theme={theme} onClick={() => onConfigChange("videoCallMode", "async")}>
-                                异步 4x
+                                异步·4倍扣费
                             </OptionPill>
                         </div>
                     </SettingGroup>

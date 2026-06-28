@@ -23,7 +23,7 @@ export function CanvasVideoSettingsPopover({ config, onConfigChange, buttonClass
     const panelRef = useRef<HTMLDivElement>(null);
     const [open, setOpen] = useState(false);
     const [buttonRect, setButtonRect] = useState<DOMRect | null>(null);
-    const callModeLabel = normalizeVideoCallMode(config.videoCallMode) === "async" ? "异步 4x" : "同步";
+    const callModeLabel = normalizeVideoCallMode(config.videoCallMode) === "async" ? "异步·4倍扣费" : "同步";
 
     useEffect(() => {
         if (!open) return;

@@ -932,7 +932,7 @@ function normalizeVideoSeconds(value: string) {
 }
 
 function videoModeLabel(value: AiConfig["videoCallMode"] | undefined) {
-    return normalizeVideoCallMode(value) === "async" ? "异步 4x" : "同步";
+    return normalizeVideoCallMode(value) === "async" ? "异步·4倍扣费" : "同步";
 }
 
 function normalizeVideoSize(value: string) {

@@ -103,7 +103,7 @@ function ModelLabel({ config, model }: { config: AiConfig; model: string }) {
                 <span
                     className={cn(
                         "ml-auto shrink-0 rounded-full px-2 py-0.5 text-[10px] leading-none",
-                        billing.includes("Async") ? "bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-100" : "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-100",
+                        billing.includes("异步") ? "bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-100" : "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-100",
                     )}
                 >
                     {billing}

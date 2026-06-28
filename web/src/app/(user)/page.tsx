@@ -35,7 +35,7 @@ const keySteps = [
     },
     {
         title: "媒体 Key 用于图片和视频",
-        copy: "画布内图片与视频统一走 RelayBases 媒体线路；异步图片和视频任务会按 4x 计费。",
+        copy: "画布内图片与视频统一走 RelayBases 媒体线路；异步图片和视频任务会按 4 倍扣费。",
         icon: Sparkles,
     },
     {
