@@ -1,7 +1,7 @@
 "use client";
 
 import { FolderPlus, Search } from "lucide-react";
-import { type UIEvent, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { App, Button, Empty, Input, Spin, Tag } from "antd";
 
 import { PromptCard } from "@/components/prompts/prompt-card";
@@ -38,19 +38,9 @@ export default function PromptsPage() {
         message.success("已加入我的素材");
     };
 
-    const handleListScroll = (event: UIEvent<HTMLDivElement>) => {
-        const target = event.currentTarget;
-        if (query.hasNextPage && !query.isFetchingNextPage && target.scrollTop + target.clientHeight >= target.scrollHeight - 160) {
-            void query.fetchNextPage();
-        }
-    };
-
     return (
-        <div className="flex h-full flex-col overflow-hidden bg-background text-stone-800 dark:text-stone-100">
-            <main
-                className="min-h-0 flex-1 overflow-y-auto bg-background bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] px-6 py-8 [background-size:16px_16px] dark:bg-[radial-gradient(rgba(245,245,244,.16)_1px,transparent_1px)]"
-                onScroll={handleListScroll}
-            >
+        <div className="min-h-full bg-background text-stone-800 dark:text-stone-100">
+            <main className="bg-background bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] px-6 py-8 [background-size:16px_16px] dark:bg-[radial-gradient(rgba(245,245,244,.16)_1px,transparent_1px)]">
                 <div className="pb-8">
                     <div className="mx-auto max-w-5xl text-center">
                         <h1 className="text-4xl font-semibold tracking-tight text-stone-950 dark:text-stone-100">提示词中心</h1>
@@ -116,7 +106,13 @@ export default function PromptsPage() {
                         </div>
                         {promptItems.length === 0 ? <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="没有找到匹配的提示词" className="py-16" /> : null}
                         <div className="mx-auto mt-6 max-w-7xl text-center text-xs text-stone-500 dark:text-stone-400">
-                            {query.isFetchingNextPage ? "加载中..." : query.hasNextPage ? "继续向下滚动加载更多" : promptItems.length > 0 ? "已经到底了" : null}
+                            {query.hasNextPage ? (
+                                <Button size="small" loading={query.isFetchingNextPage} onClick={() => void query.fetchNextPage()}>
+                                    加载更多
+                                </Button>
+                            ) : promptItems.length > 0 ? (
+                                "已经到底了"
+                            ) : null}
                         </div>
                     </div>
                 ) : null}

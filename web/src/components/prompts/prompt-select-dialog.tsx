@@ -34,7 +34,7 @@ export function PromptSelectDialog({ open, onOpenChange, onSelect }: { open: boo
     };
 
     return (
-        <Modal title="提示词库" open={open} onCancel={() => onOpenChange(false)} footer={null} width={1040} centered>
+        <Modal title="提示词库" open={open} onCancel={() => onOpenChange(false)} footer={null} width={1040} centered styles={{ body: { maxHeight: "calc(100vh - 180px)", overflowY: "auto", paddingRight: 12 } }}>
             <div data-canvas-no-zoom onWheelCapture={(event) => event.stopPropagation()}>
                 <div className="mx-auto max-w-2xl">
                     <Input size="large" prefix={<Search className="size-4 text-stone-400" />} value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="按标题查询" />
@@ -64,7 +64,7 @@ export function PromptSelectDialog({ open, onOpenChange, onSelect }: { open: boo
                         </div>
                     </div>
                 </div>
-                <div className="thin-scrollbar mt-6 max-h-[520px] overflow-y-auto pr-2" data-canvas-no-zoom onScroll={handleListScroll} onWheelCapture={(event) => event.stopPropagation()}>
+                <div className="thin-scrollbar mt-6 max-h-[min(52vh,520px)] overflow-y-auto pr-2 pb-2" data-canvas-no-zoom onScroll={handleListScroll} onWheelCapture={(event) => event.stopPropagation()}>
                     {query.isLoading ? (
                         <div className="flex h-40 items-center justify-center">
                             <Spin />

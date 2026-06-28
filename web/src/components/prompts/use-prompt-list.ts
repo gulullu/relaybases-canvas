@@ -6,13 +6,13 @@ import { useInfiniteQuery } from "@tanstack/react-query";
 import { ALL_PROMPTS_OPTION, fetchPrompts } from "@/services/api/prompts";
 import { useLanguageStore } from "@/stores/use-language-store";
 
-export const PROMPT_PAGE_SIZE = 20;
+export const PROMPT_PAGE_SIZE = 100;
 
-export function usePromptList({ keyword, tags, category, enabled = true }: { keyword: string; tags: string[]; category: string; enabled?: boolean }) {
+export function usePromptList({ keyword, tags, category, enabled = true, pageSize = PROMPT_PAGE_SIZE }: { keyword: string; tags: string[]; category: string; enabled?: boolean; pageSize?: number }) {
     const language = useLanguageStore((state) => state.language);
     const query = useInfiniteQuery({
-        queryKey: ["prompts", keyword, tags, category, language],
-        queryFn: ({ pageParam }) => fetchPrompts({ keyword, tag: tags, category, page: pageParam, pageSize: PROMPT_PAGE_SIZE }),
+        queryKey: ["prompts", keyword, tags, category, language, pageSize],
+        queryFn: ({ pageParam }) => fetchPrompts({ keyword, tag: tags, category, page: pageParam, pageSize }),
         initialPageParam: 1,
         getNextPageParam: (lastPage, pages) => (pages.reduce((total, page) => total + page.items.length, 0) < lastPage.total ? pages.length + 1 : undefined),
         enabled,
