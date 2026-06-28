@@ -408,6 +408,7 @@ function InfiniteCanvasPage() {
 
     useEffect(() => {
         if (!hydrated) return;
+        let cancelled = false;
         setProjectLoaded(false);
         const project = openProject(projectId);
         if (!project) {
@@ -416,15 +417,23 @@ function InfiniteCanvasPage() {
         }
 
         const restore = async () => {
-            const restoredNodes = await hydrateCanvasImages(resetInterruptedGeneration(project.nodes));
-            const restoredSessions = await hydrateAssistantImages(project.chatSessions || []);
+            let restoreFailed = false;
+            let restoredNodes = resetInterruptedGeneration(project.nodes || []);
+            let restoredSessions = project.chatSessions || [];
+            try {
+                [restoredNodes, restoredSessions] = await Promise.all([hydrateCanvasImages(restoredNodes), hydrateAssistantImages(restoredSessions)]);
+            } catch (error) {
+                restoreFailed = true;
+                console.warn("Canvas restore failed, opening with persisted data.", error);
+            }
+            if (cancelled) return;
             setNodes(restoredNodes);
-            setConnections(project.connections);
+            setConnections(project.connections || []);
             setChatSessions(restoredSessions);
             setActiveChatId(project.activeChatId || null);
-            setBackgroundMode(project.backgroundMode);
+            setBackgroundMode(project.backgroundMode || "lines");
             setShowImageInfo(project.showImageInfo || false);
-            setViewport(project.viewport);
+            setViewport(project.viewport || { x: 0, y: 0, k: 1 });
             historyRef.current = { past: [], future: [] };
             if (historyCommitTimerRef.current) {
                 clearTimeout(historyCommitTimerRef.current);
@@ -432,17 +441,21 @@ function InfiniteCanvasPage() {
             }
             lastHistoryRef.current = {
                 nodes: restoredNodes,
-                connections: project.connections,
+                connections: project.connections || [],
                 chatSessions: restoredSessions,
                 activeChatId: project.activeChatId || null,
-                backgroundMode: project.backgroundMode,
+                backgroundMode: project.backgroundMode || "lines",
                 showImageInfo: project.showImageInfo || false,
             };
             setHistoryState({ canUndo: false, canRedo: false });
             setProjectLoaded(true);
+            if (restoreFailed) message.warning("部分本地素材读取失败，已先打开画布");
         };
         void restore();
-    }, [hydrated, openProject, projectId, router]);
+        return () => {
+            cancelled = true;
+        };
+    }, [hydrated, message, openProject, projectId, router]);
 
     useEffect(() => {
         if (!projectLoaded || !["new", "recent", "choose"].includes(searchParams.get("mode") || "")) return;
@@ -3228,22 +3241,32 @@ async function resolveMetadataReferences(metadata: CanvasNodeMetadata) {
 async function hydrateCanvasImages(nodes: CanvasNodeData[]) {
     return Promise.all(
         nodes.map(async (node) => {
-            const content = node.metadata?.content;
-            if ((node.type === CanvasNodeType.Video || node.type === CanvasNodeType.Audio) && node.metadata?.storageKey) return { ...node, metadata: { ...node.metadata, content: await resolveMediaUrl(node.metadata.storageKey, content) } };
-            if (node.type !== CanvasNodeType.Image || !content) return node;
-            if (node.metadata?.storageKey) return { ...node, metadata: { ...node.metadata, content: await resolveImageUrl(node.metadata.storageKey, content) } };
-            if (!content.startsWith("data:image/")) return node;
-            return { ...node, metadata: { ...node.metadata, ...imageMetadata(await uploadImage(content)) } };
+            try {
+                const content = typeof node.metadata?.content === "string" ? node.metadata.content : "";
+                if ((node.type === CanvasNodeType.Video || node.type === CanvasNodeType.Audio) && node.metadata?.storageKey) return { ...node, metadata: { ...node.metadata, content: await resolveMediaUrl(node.metadata.storageKey, content) } };
+                if (node.type !== CanvasNodeType.Image || !content) return node;
+                if (node.metadata?.storageKey) return { ...node, metadata: { ...node.metadata, content: await resolveImageUrl(node.metadata.storageKey, content) } };
+                if (!content.startsWith("data:image/")) return node;
+                return { ...node, metadata: { ...node.metadata, ...imageMetadata(await uploadImage(content)) } };
+            } catch (error) {
+                console.warn("Canvas node media restore failed.", { nodeId: node.id, error });
+                return node;
+            }
         }),
     );
 }
 
 async function hydrateAssistantImages(sessions: CanvasAssistantSession[]) {
     const hydrateItem = async <T extends { dataUrl?: string; storageKey?: string }>(item: T) => {
-        if (item.storageKey) return { ...item, dataUrl: await resolveImageUrl(item.storageKey, item.dataUrl) };
-        if (item.dataUrl?.startsWith("data:image/")) {
-            const image = await uploadImage(item.dataUrl);
-            return { ...item, dataUrl: image.url, storageKey: image.storageKey };
+        try {
+            const dataUrl = typeof item.dataUrl === "string" ? item.dataUrl : "";
+            if (item.storageKey) return { ...item, dataUrl: await resolveImageUrl(item.storageKey, dataUrl) };
+            if (dataUrl.startsWith("data:image/")) {
+                const image = await uploadImage(dataUrl);
+                return { ...item, dataUrl: image.url, storageKey: image.storageKey };
+            }
+        } catch (error) {
+            console.warn("Assistant image restore failed.", { storageKey: item.storageKey, error });
         }
         return item;
     };
