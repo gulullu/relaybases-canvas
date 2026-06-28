@@ -4,7 +4,7 @@ import { getDataUrlByteSize } from "@/lib/image-utils";
 import { getMediaBlob, uploadMediaFile, type UploadedFile } from "@/services/file-storage";
 import { imageToDataUrl } from "@/services/image-storage";
 import { boolConfig, buildSeedancePromptText, isSeedanceVideoConfig, normalizeSeedanceDuration, normalizeSeedanceRatio, normalizeSeedanceResolution, seedanceVideoReferenceError, SEEDANCE_REFERENCE_LIMITS } from "@/lib/seedance-video";
-import { buildApiUrl, modelOptionName, resolveModelRequestConfig, type AiConfig } from "@/stores/use-config-store";
+import { buildApiUrl, isRelayBasesVideoModel, modelOptionName, resolveModelRequestConfig, type AiConfig } from "@/stores/use-config-store";
 import type { ReferenceImage } from "@/types/image";
 import type { ReferenceAudio, ReferenceVideo } from "@/types/media";
 
@@ -35,7 +35,7 @@ const RELAYBASES_IMAGE_MAX_EDGE = 1536;
 const RELAYBASES_IMAGE_MIN_EDGE = 256;
 
 export type VideoGenerationResult = { blob?: Blob; url?: string; mimeType?: string };
-export type VideoGenerationTask = { id: string; provider: "openai" | "seedance"; model: string };
+export type VideoGenerationTask = { id: string; provider: "openai" | "seedance"; model: string; mode?: AiConfig["videoCallMode"] };
 export type VideoGenerationTaskState = { status: "pending" } | { status: "completed"; result: VideoGenerationResult } | { status: "failed"; error: string };
 
 function aiApiUrl(config: AiConfig, path: string) {
@@ -88,10 +88,13 @@ export async function storeGeneratedVideo(result: VideoGenerationResult): Promis
 async function createOpenAIVideoTask(config: AiConfig, model: string, prompt: string, references: ReferenceImage[], videoReferences: ReferenceVideo[], audioReferences: ReferenceAudio[], options?: RequestOptions): Promise<VideoGenerationTask> {
     const body = await buildRelayBasesVideoPayload(config, model, prompt, references, videoReferences, audioReferences);
     try {
-        const created = unwrapVideoResponse((await axios.post<ApiVideoResponse>(aiApiUrl(config, "/videos"), body, { headers: aiHeaders(config, "application/json"), signal: options?.signal })).data);
+        const isRelayBasesVideo = isRelayBasesVideoModel(model);
+        const mode = isRelayBasesVideo ? config.videoCallMode || "sync" : undefined;
+        const path = isRelayBasesVideo && mode !== "async" ? "/video/generations" : "/videos";
+        const created = unwrapVideoResponse((await axios.post<ApiVideoResponse>(aiApiUrl(config, path), body, { headers: aiHeaders(config, "application/json"), signal: options?.signal })).data);
         const id = created.task_id || created.id;
         if (!id) throw new Error("视频接口没有返回任务 ID");
-        return { id, provider: "openai", model };
+        return { id, provider: "openai", model, mode };
     } catch (error) {
         throw new Error(readAxiosError(error, "视频任务创建失败"));
     }

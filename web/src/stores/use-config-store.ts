@@ -27,6 +27,7 @@ export type AiConfig = {
     model: string;
     imageModel: string;
     videoModel: string;
+    videoCallMode: "sync" | "async";
     textModel: string;
     audioModel: string;
     audioVoice: string;
@@ -71,13 +72,14 @@ export const RELAYBASES_RECOMMENDED_TEXT_KEY_GROUP = "codex-pro";
 export const RELAYBASES_SYNC_IMAGE_MODELS = ["gpt-image-2", "nana-banana-2_sync", "nana-banana-pro_sync"] as const;
 export const RELAYBASES_ASYNC_IMAGE_MODELS = ["nana-banana-2", "nana-banana-pro"] as const;
 export const RELAYBASES_VIDEO_MODELS = ["veo-3-1", "veo-omni-flash", "veo-omni-flash-video-edit", "video-fast-720p", "video-pro-720p", "video-pro-1080p"] as const;
-export const RELAYBASES_MEDIA_MODELS = [...RELAYBASES_SYNC_IMAGE_MODELS, ...RELAYBASES_ASYNC_IMAGE_MODELS, ...RELAYBASES_VIDEO_MODELS] as const;
+export const RELAYBASES_IMAGE_MODELS = [...RELAYBASES_SYNC_IMAGE_MODELS, ...RELAYBASES_ASYNC_IMAGE_MODELS] as const;
+export const RELAYBASES_MEDIA_MODELS = [...RELAYBASES_IMAGE_MODELS, ...RELAYBASES_VIDEO_MODELS] as const;
 export const RELAYBASES_MODELS = RELAYBASES_MEDIA_MODELS;
 const GEMINI_BASE_URL = "https://generativelanguage.googleapis.com";
 const RELAYBASES_DEFAULT_IMAGE_MODEL = `${RELAYBASES_CHANNEL_ID}${CHANNEL_MODEL_SEPARATOR}gpt-image-2`;
 const RELAYBASES_DEFAULT_VIDEO_MODEL = `${RELAYBASES_CHANNEL_ID}${CHANNEL_MODEL_SEPARATOR}veo-3-1`;
 const RELAYBASES_MODEL_OPTIONS = RELAYBASES_MODELS.map((model) => `${RELAYBASES_CHANNEL_ID}${CHANNEL_MODEL_SEPARATOR}${model}`);
-const RELAYBASES_SYNC_IMAGE_MODEL_OPTIONS = RELAYBASES_SYNC_IMAGE_MODELS.map((model) => `${RELAYBASES_CHANNEL_ID}${CHANNEL_MODEL_SEPARATOR}${model}`);
+const RELAYBASES_IMAGE_MODEL_OPTIONS = RELAYBASES_IMAGE_MODELS.map((model) => `${RELAYBASES_CHANNEL_ID}${CHANNEL_MODEL_SEPARATOR}${model}`);
 const RELAYBASES_VIDEO_MODEL_OPTIONS = RELAYBASES_VIDEO_MODELS.map((model) => `${RELAYBASES_CHANNEL_ID}${CHANNEL_MODEL_SEPARATOR}${model}`);
 
 export const defaultConfig: AiConfig = {
@@ -108,6 +110,7 @@ export const defaultConfig: AiConfig = {
     model: RELAYBASES_DEFAULT_IMAGE_MODEL,
     imageModel: RELAYBASES_DEFAULT_IMAGE_MODEL,
     videoModel: RELAYBASES_DEFAULT_VIDEO_MODEL,
+    videoCallMode: "sync",
     textModel: "",
     audioModel: "",
     audioVoice: "alloy",
@@ -120,7 +123,7 @@ export const defaultConfig: AiConfig = {
     videoWatermark: "false",
     systemPrompt: "",
     models: RELAYBASES_MODEL_OPTIONS,
-    imageModels: RELAYBASES_SYNC_IMAGE_MODEL_OPTIONS,
+    imageModels: RELAYBASES_IMAGE_MODEL_OPTIONS,
     videoModels: RELAYBASES_VIDEO_MODEL_OPTIONS,
     textModels: [],
     audioModels: [],
@@ -297,9 +300,13 @@ export function isRelayBasesSyncImageModel(model: string) {
     return (RELAYBASES_SYNC_IMAGE_MODELS as readonly string[]).includes(modelOptionName(model));
 }
 
+export function isRelayBasesAsyncImageModel(model: string) {
+    return (RELAYBASES_ASYNC_IMAGE_MODELS as readonly string[]).includes(modelOptionName(model));
+}
+
 export function isRelayBasesAsyncTaskModel(model: string) {
     const name = modelOptionName(model);
-    return (RELAYBASES_ASYNC_IMAGE_MODELS as readonly string[]).includes(name) || (RELAYBASES_VIDEO_MODELS as readonly string[]).includes(name);
+    return isRelayBasesAsyncImageModel(name);
 }
 
 export function relayBasesModelBillingLabel(model: string) {
@@ -308,12 +315,24 @@ export function relayBasesModelBillingLabel(model: string) {
     return "";
 }
 
+export function isRelayBasesVideoModel(model: string) {
+    return (RELAYBASES_VIDEO_MODELS as readonly string[]).includes(modelOptionName(model));
+}
+
+export function normalizeVideoCallMode(value: unknown): AiConfig["videoCallMode"] {
+    return value === "async" ? "async" : "sync";
+}
+
 export function modelOptionLabel(_config: AiConfig, value: string) {
     return modelOptionName(value);
 }
 
 export function modelOptionsFromChannels(channels: ModelChannel[]) {
     return uniqueModelOptions(channels.flatMap((channel) => channel.models.map((model) => encodeChannelModel(channel.id, model))));
+}
+
+export function preferredTextModelOption(models: string[]) {
+    return models.find((model) => modelOptionName(model).toLowerCase() === "gpt-5.5") || models[0] || "";
 }
 
 export function normalizeModelOptionValue(value: string | undefined, channels: ModelChannel[]) {
@@ -375,9 +394,9 @@ function normalizeRelayBasesConfig(config: AiConfig): AiConfig {
     const normalizedVideoModel = normalizeModelOptionValue(config.videoModel, channels);
     const textModelOptions = channels.filter((channel) => channel.id === RELAYBASES_TEXT_CHANNEL_ID).flatMap((channel) => channel.models.map((model) => encodeChannelModel(channel.id, model)));
     const normalizedTextModel = normalizeModelOptionValue(config.textModel, channels);
-    const imageModel = RELAYBASES_SYNC_IMAGE_MODEL_OPTIONS.includes(normalizedImageModel) ? normalizedImageModel : RELAYBASES_DEFAULT_IMAGE_MODEL;
+    const imageModel = RELAYBASES_IMAGE_MODEL_OPTIONS.includes(normalizedImageModel) ? normalizedImageModel : RELAYBASES_DEFAULT_IMAGE_MODEL;
     const videoModel = RELAYBASES_VIDEO_MODEL_OPTIONS.includes(normalizedVideoModel) ? normalizedVideoModel : RELAYBASES_DEFAULT_VIDEO_MODEL;
-    const textModel = textModelOptions.includes(normalizedTextModel) ? normalizedTextModel : textModelOptions[0] || "";
+    const textModel = textModelOptions.includes(normalizedTextModel) ? normalizedTextModel : preferredTextModelOption(textModelOptions);
     const mediaApiKey = channels.find((channel) => channel.id === RELAYBASES_CHANNEL_ID)?.apiKey || "";
     const textApiKey = channels.find((channel) => channel.id === RELAYBASES_TEXT_CHANNEL_ID)?.apiKey || "";
     return {
@@ -393,9 +412,10 @@ function normalizeRelayBasesConfig(config: AiConfig): AiConfig {
         model: imageModel,
         imageModel,
         videoModel,
+        videoCallMode: normalizeVideoCallMode(config.videoCallMode),
         textModel,
         audioModel: "",
-        imageModels: RELAYBASES_SYNC_IMAGE_MODEL_OPTIONS,
+        imageModels: RELAYBASES_IMAGE_MODEL_OPTIONS,
         videoModels: RELAYBASES_VIDEO_MODEL_OPTIONS,
         textModels: textModelOptions,
         audioModels: [],

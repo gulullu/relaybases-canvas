@@ -1,6 +1,6 @@
 import axios from "axios";
 
-import { buildApiUrl, isRelayBasesSyncImageModel, modelOptionName, resolveModelRequestConfig, type AiConfig, type ModelChannel } from "@/stores/use-config-store";
+import { buildApiUrl, isRelayBasesAsyncImageModel, isRelayBasesSyncImageModel, modelOptionName, resolveModelRequestConfig, type AiConfig, type ModelChannel } from "@/stores/use-config-store";
 import { nanoid } from "nanoid";
 import { dataUrlToFile } from "@/lib/image-utils";
 import { buildImageReferencePromptText } from "@/lib/image-reference-prompt";
@@ -64,6 +64,19 @@ type ImageApiResponse = {
     code?: number;
     msg?: string;
 };
+type AsyncMediaTaskResponse = {
+    id?: string;
+    task_id?: string;
+    status?: string;
+    task_status?: string;
+    progress?: number;
+    image_url?: string | null;
+    video_url?: string | null;
+    url?: string | null;
+    result_urls?: string[];
+    error?: { message?: string };
+};
+type ApiAsyncMediaTaskResponse = AsyncMediaTaskResponse | { code?: number; data?: AsyncMediaTaskResponse | null; msg?: string };
 type GeminiPart = {
     text?: string;
     inlineData?: { mimeType?: string; data?: string };
@@ -199,6 +212,98 @@ function parseImagePayload(payload: ImageApiResponse) {
     return images;
 }
 
+function unwrapAsyncMediaTask(payload: ApiAsyncMediaTaskResponse) {
+    if (!payload) throw new Error("异步任务接口没有返回任务");
+    if (typeof payload === "object" && "code" in payload && typeof payload.code === "number") {
+        if (payload.code !== 0) throw new Error(payload.msg || "请求失败");
+        if (!payload.data) throw new Error("异步任务接口没有返回任务");
+        return payload.data;
+    }
+    return payload as AsyncMediaTaskResponse;
+}
+
+function readAsyncImageResultUrl(task: AsyncMediaTaskResponse) {
+    return task.image_url || task.result_urls?.find(Boolean) || task.url || "";
+}
+
+function isAsyncTaskCompleted(task: AsyncMediaTaskResponse) {
+    const status = task.task_status || task.status || "";
+    return status === "completed" || status === "succeeded";
+}
+
+function isAsyncTaskFailed(task: AsyncMediaTaskResponse) {
+    const status = task.task_status || task.status || "";
+    return status === "failed" || status === "cancelled" || status === "expired";
+}
+
+function asyncImageResolution(config: AiConfig) {
+    const quality = normalizeQuality(config.quality);
+    const dimensions = parseImageDimensions(config.size);
+    if (quality === "high" || quality === "medium") return "2k";
+    if (dimensions && Math.max(dimensions.width, dimensions.height) >= 1536) return "2k";
+    return "1k";
+}
+
+async function resolveAsyncImageReferenceUrl(image: ReferenceImage) {
+    const directUrl = image.url || image.dataUrl || "";
+    if (/^https?:\/\//i.test(directUrl) || directUrl.startsWith("asset://")) return directUrl;
+    const dataUrl = directUrl.startsWith("data:") ? directUrl : await imageToDataUrl(image);
+    if (!dataUrl) throw new Error("参考图读取失败，请换一张图片或重新上传");
+    return dataUrl;
+}
+
+async function createAsyncImageTask(config: AiConfig, prompt: string, references: ReferenceImage[], options?: RequestOptions) {
+    const images = await Promise.all(references.slice(0, 9).map(resolveAsyncImageReferenceUrl));
+    const response = await axios.post<ApiAsyncMediaTaskResponse>(
+        aiApiUrl(config, "/videos"),
+        {
+            model: modelOptionName(config.model),
+            prompt: withSystemPrompt(config, prompt),
+            duration: 4,
+            resolution: asyncImageResolution(config),
+            ...(images.length ? { images } : {}),
+        },
+        {
+            headers: aiHeaders(config, "application/json"),
+            signal: options?.signal,
+        },
+    );
+    const task = unwrapAsyncMediaTask(response.data);
+    const id = task.task_id || task.id;
+    if (!id) throw new Error("异步图片任务没有返回 task_id");
+    return id;
+}
+
+async function pollAsyncImageTask(config: AiConfig, taskId: string, options?: RequestOptions) {
+    const response = await axios.get<ApiAsyncMediaTaskResponse>(aiApiUrl(config, `/videos/${encodeURIComponent(taskId)}`), { headers: aiHeaders(config), signal: options?.signal });
+    const task = unwrapAsyncMediaTask(response.data);
+    if (isAsyncTaskCompleted(task)) {
+        const url = readAsyncImageResultUrl(task);
+        if (!url) throw new Error("异步图片任务完成但没有返回图片 URL");
+        return { id: nanoid(), dataUrl: url };
+    }
+    if (isAsyncTaskFailed(task)) throw new Error(task.error?.message || "异步图片任务生成失败");
+    return null;
+}
+
+async function requestAsyncRelayBasesImages(config: AiConfig, prompt: string, references: ReferenceImage[], count: number, options?: RequestOptions) {
+    const tasks = await Promise.all(Array.from({ length: count }, () => createAsyncImageTask(config, prompt, references, options)));
+    const results: Array<{ id: string; dataUrl: string }> = [];
+    for (const taskId of tasks) {
+        for (let attempt = 0; attempt < 120; attempt += 1) {
+            if (options?.signal?.aborted) throw new DOMException("Aborted", "AbortError");
+            const result = await pollAsyncImageTask(config, taskId, options);
+            if (result) {
+                results.push(result);
+                break;
+            }
+            if (attempt === 119) throw new Error("异步图片任务超时，请稍后重试");
+            await delay(2500, options?.signal);
+        }
+    }
+    return results;
+}
+
 function readAxiosError(error: unknown, fallback: string) {
     if (axios.isCancel(error)) return "请求已取消";
     if (axios.isAxiosError<{ error?: { message?: string }; msg?: string; code?: number }>(error)) {
@@ -207,6 +312,24 @@ function readAxiosError(error: unknown, fallback: string) {
     }
     if (error instanceof DOMException && error.name === "AbortError") return "请求已取消";
     return error instanceof Error ? error.message : fallback;
+}
+
+function delay(ms: number, signal?: AbortSignal) {
+    return new Promise<void>((resolve, reject) => {
+        if (signal?.aborted) {
+            reject(new DOMException("Aborted", "AbortError"));
+            return;
+        }
+        const timer = setTimeout(resolve, ms);
+        signal?.addEventListener(
+            "abort",
+            () => {
+                clearTimeout(timer);
+                reject(new DOMException("Aborted", "AbortError"));
+            },
+            { once: true },
+        );
+    });
 }
 
 function readStatusError(status: number | undefined, fallback: string) {
@@ -710,6 +833,13 @@ export async function requestGeneration(config: AiConfig, prompt: string, option
             throw new Error(readAxiosError(error, "请求失败"));
         }
     }
+    if (isRelayBasesAsyncImageModel(requestConfig.model)) {
+        try {
+            return await requestAsyncRelayBasesImages(requestConfig, prompt, [], n, options);
+        } catch (error) {
+            throw new Error(readAxiosError(error, "异步图片任务创建失败"));
+        }
+    }
     const quality = normalizeQuality(config.quality);
     const requestSize = resolveRequestSize(quality, config.size);
     try {
@@ -750,6 +880,14 @@ export async function requestEdit(config: AiConfig, prompt: string, references: 
     }
     const quality = normalizeQuality(config.quality);
     const requestSize = resolveRequestSize(quality, config.size);
+    if (isRelayBasesAsyncImageModel(requestConfig.model)) {
+        if (mask) throw new Error("异步 Nana Banana 图片任务暂不支持蒙版编辑");
+        try {
+            return await requestAsyncRelayBasesImages(requestConfig, requestPrompt, references, n, options);
+        } catch (error) {
+            throw new Error(readAxiosError(error, "异步图片任务创建失败"));
+        }
+    }
     if (isRelayBasesNanaSyncModel(requestConfig.model)) {
         if (mask) throw new Error("Nana Banana 同步图片暂不支持蒙版编辑，请改用 gpt-image-2 编辑");
         const images = await Promise.all(references.map((image) => imageToDataUrl(image)));

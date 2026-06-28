@@ -13,6 +13,8 @@ import {
     encodeChannelModel,
     filterModelsByCapability,
     modelOptionName,
+    preferredTextModelOption,
+    RELAYBASES_ASYNC_IMAGE_MODELS,
     RELAYBASES_RECOMMENDED_IMAGE_KEY_GROUP,
     RELAYBASES_RECOMMENDED_TEXT_KEY_GROUP,
     RELAYBASES_SYNC_IMAGE_MODELS,
@@ -20,6 +22,7 @@ import {
     RELAYBASES_TEXT_CHANNEL_ID,
     RELAYBASES_VIDEO_MODELS,
     useConfigStore,
+    type AiConfig,
     type ModelCapability,
     type ModelChannel,
 } from "@/stores/use-config-store";
@@ -120,7 +123,7 @@ export function AppConfigModal() {
                 return;
             }
             const textModels = models.map((model) => encodeChannelModel(RELAYBASES_TEXT_CHANNEL_ID, model));
-            const recommendedTextModel = textModels.find((model) => modelOptionName(model).toLowerCase().includes(RELAYBASES_RECOMMENDED_TEXT_KEY_GROUP)) || textModels[0];
+            const recommendedTextModel = preferredTextModelOption(textModels);
             const textModel = textModels.includes(config.textModel) ? config.textModel : recommendedTextModel;
             updateConfigValues({ textModels, textModel });
             message.success(`已获取 ${models.length} 个文本模型，默认使用 ${modelOptionName(textModel)}。建议文本 Key 使用 ${RELAYBASES_RECOMMENDED_TEXT_KEY_GROUP} 分组。`);
@@ -213,7 +216,7 @@ export function AppConfigModal() {
                                 <div className="grid gap-4 md:grid-cols-2">
                                     <div className="grid content-start gap-3">
                                         <div className="rounded-lg border border-stone-200 p-3 text-sm dark:border-stone-800">
-                                            <Form.Item label="媒体 API Key" extra={`用于图片和视频生成。建议在主站用 ${RELAYBASES_RECOMMENDED_IMAGE_KEY_GROUP} 分组创建媒体 Key；视频与异步任务按 4x 计费。`} className="mb-3">
+                                            <Form.Item label="媒体 API Key" extra={`用于图片和视频生成。建议在主站用 ${RELAYBASES_RECOMMENDED_IMAGE_KEY_GROUP} 分组创建媒体 Key；异步图片和异步视频任务按 4x 计费。`} className="mb-3">
                                                 <Input.Password value={config.mediaApiKey} onChange={(event) => updateConfig("mediaApiKey", event.target.value)} placeholder="sk-..." />
                                             </Form.Item>
                                             <div className="flex flex-wrap gap-2 text-xs">
@@ -231,13 +234,21 @@ export function AppConfigModal() {
                                                     </span>
                                                 ))}
                                             </div>
+                                            <div className="mt-3 text-xs font-semibold text-amber-700 dark:text-amber-200">异步图片任务</div>
+                                            <div className="mt-2 flex flex-wrap gap-1.5">
+                                                {RELAYBASES_ASYNC_IMAGE_MODELS.map((model) => (
+                                                    <span key={model} className="rounded-md bg-amber-50 px-2 py-1 font-mono text-xs text-amber-900 dark:bg-amber-950/30 dark:text-amber-100">
+                                                        {model}
+                                                    </span>
+                                                ))}
+                                            </div>
                                         </div>
-                                        <div className="rounded-lg border border-amber-200 p-3 text-sm dark:border-amber-900/70">
-                                            <div className="font-semibold">异步视频任务</div>
-                                            <div className="mt-1 text-xs text-amber-700 dark:text-amber-200">按 4x 计费。</div>
+                                        <div className="rounded-lg border border-stone-200 p-3 text-sm dark:border-stone-800">
+                                            <div className="font-semibold">视频模型</div>
+                                            <div className="mt-1 text-xs text-stone-500 dark:text-stone-400">默认同步调用；用户也可以切换为异步任务，异步按 4x 计费。</div>
                                             <div className="mt-2 flex flex-wrap gap-1.5">
                                                 {RELAYBASES_VIDEO_MODELS.map((model) => (
-                                                    <span key={model} className="rounded-md bg-amber-50 px-2 py-1 font-mono text-xs text-amber-900 dark:bg-amber-950/30 dark:text-amber-100">
+                                                    <span key={model} className="rounded-md bg-stone-100 px-2 py-1 font-mono text-xs dark:bg-stone-900">
                                                         {model}
                                                     </span>
                                                 ))}
@@ -259,7 +270,7 @@ export function AppConfigModal() {
                                                 <span className="rounded-full border border-stone-200 bg-stone-50 px-2.5 py-1 text-stone-700 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-200">其它文本分组可用</span>
                                             </div>
                                             <div className="text-xs text-stone-500">
-                                                {config.textModels.length ? `已获取 ${config.textModels.length} 个文本模型，默认 ${modelOptionName(config.textModel)}` : "填写文本 API Key 后获取模型；若返回列表包含 codex-pro，会优先使用 codex-pro，否则使用返回列表第一个。"}
+                                                {config.textModels.length ? `已获取 ${config.textModels.length} 个文本模型，默认 ${modelOptionName(config.textModel)}` : "填写文本 API Key 后获取模型；若返回列表包含 gpt-5.5，会优先使用 gpt-5.5，否则使用返回列表第一个。"}
                                             </div>
                                         </div>
                                         <div className="rounded-lg border border-stone-200 p-3 text-sm dark:border-stone-800">
@@ -291,7 +302,7 @@ export function AppConfigModal() {
                             <Form layout="vertical" requiredMark={false}>
                                 <div className="mb-4 rounded-lg border border-stone-200 p-3 dark:border-stone-800">
                                     <div className="text-sm font-semibold">默认模型</div>
-                                    <div className="mt-1 text-xs leading-5 text-stone-500">生图默认使用同步接口；视频模型会提交异步任务并按 4x 计费；文本模型用于 Agent 和文本节点。</div>
+                                    <div className="mt-1 text-xs leading-5 text-stone-500">生图默认使用同步接口；视频默认同步调用，按需可切换异步 4x；文本模型用于 Agent 和文本节点。</div>
                                 </div>
                                 <div className="grid gap-4 md:grid-cols-3">
                                     {modelGroups.map((group) => (
@@ -300,6 +311,16 @@ export function AppConfigModal() {
                                         </Form.Item>
                                     ))}
                                 </div>
+                                <Form.Item label="默认视频调用方式" className="mt-4 mb-0">
+                                    <Segmented
+                                        value={config.videoCallMode}
+                                        onChange={(value) => updateConfig("videoCallMode", value as AiConfig["videoCallMode"])}
+                                        options={[
+                                            { label: "同步", value: "sync" },
+                                            { label: "异步 4x", value: "async" },
+                                        ]}
+                                    />
+                                </Form.Item>
                             </Form>
                         ),
                     },

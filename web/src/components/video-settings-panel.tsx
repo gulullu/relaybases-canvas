@@ -17,7 +17,7 @@ import {
     seedanceResolutionOptions,
 } from "@/lib/seedance-video";
 import { type CanvasTheme } from "@/lib/canvas-theme";
-import { modelOptionName, type AiConfig } from "@/stores/use-config-store";
+import { isRelayBasesVideoModel, modelOptionName, normalizeVideoCallMode, type AiConfig } from "@/stores/use-config-store";
 
 const resolutionOptions = [
     { value: "720", label: "720p" },
@@ -37,14 +37,14 @@ const secondOptions = [4, 6, 8, 10, 15];
 
 type VideoSettingsPanelProps = {
     config: AiConfig;
-    onConfigChange: (key: "vquality" | "size" | "videoSeconds" | "videoGenerateAudio" | "videoWatermark", value: string) => void;
+    onConfigChange: (key: "vquality" | "size" | "videoSeconds" | "videoGenerateAudio" | "videoWatermark" | "videoCallMode", value: string) => void;
     theme: CanvasTheme;
     showTitle?: boolean;
     className?: string;
 };
 
 export function VideoSettingsPanel({ config, onConfigChange, theme, showTitle = true, className = "w-[320px] space-y-4 rounded-2xl px-1 py-0.5" }: VideoSettingsPanelProps) {
-    if (isSeedanceVideoConfig(config)) {
+    if (isSeedanceVideoConfig({ ...config, model: config.videoModel || config.model })) {
         return <SeedanceVideoSettingsPanel config={config} onConfigChange={onConfigChange} theme={theme} showTitle={showTitle} className={className} />;
     }
 
@@ -52,6 +52,8 @@ export function VideoSettingsPanel({ config, onConfigChange, theme, showTitle = 
     const size = normalizeVideoSizeValue(config.size);
     const dimensions = readSizeDimensions(size);
     const resolution = normalizeVideoResolutionValue(config.vquality);
+    const videoCallMode = normalizeVideoCallMode(config.videoCallMode);
+    const showCallMode = isRelayBasesVideoModel(config.videoModel || config.model);
     const updateDimension = (key: "width" | "height", value: number | null) => {
         const next = Math.max(1, Math.floor(value || dimensions[key] || 720));
         onConfigChange("size", `${key === "width" ? next : dimensions.width}x${key === "height" ? next : dimensions.height}`);
@@ -61,6 +63,18 @@ export function VideoSettingsPanel({ config, onConfigChange, theme, showTitle = 
         <ImageSettingsTheme theme={theme}>
             <div className={className} style={{ color: theme.node.text }} onMouseDown={(event) => event.stopPropagation()}>
                 {showTitle ? <div className="text-lg font-semibold">视频设置</div> : null}
+                {showCallMode ? (
+                    <SettingGroup title="调用方式" color={theme.node.muted}>
+                        <div className="grid grid-cols-2 gap-2.5">
+                            <OptionPill selected={videoCallMode === "sync"} theme={theme} onClick={() => onConfigChange("videoCallMode", "sync")}>
+                                同步
+                            </OptionPill>
+                            <OptionPill selected={videoCallMode === "async"} theme={theme} onClick={() => onConfigChange("videoCallMode", "async")}>
+                                异步 4x
+                            </OptionPill>
+                        </div>
+                    </SettingGroup>
+                ) : null}
                 <SettingGroup title="清晰度" color={theme.node.muted}>
                     <div className="grid grid-cols-3 gap-2.5">
                         {resolutionOptions.map((item) => (
@@ -110,7 +124,7 @@ export function VideoSettingsPanel({ config, onConfigChange, theme, showTitle = 
 }
 
 function SeedanceVideoSettingsPanel({ config, onConfigChange, theme, showTitle, className }: VideoSettingsPanelProps) {
-    const model = modelOptionName(config.model || config.videoModel);
+    const model = modelOptionName(config.videoModel || config.model);
     const resolution = normalizeSeedanceResolution(config.vquality, model);
     const ratio = normalizeSeedanceRatio(config.size);
     const duration = normalizeSeedanceDuration(config.videoSeconds);
