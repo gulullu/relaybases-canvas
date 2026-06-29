@@ -129,7 +129,7 @@ export default function IndexPage() {
                             RelayBases Canvas
                             <ExternalLink className="size-3.5" />
                         </a>
-                        <h1 className="mt-5 max-w-4xl text-balance text-4xl font-semibold leading-[1.04] tracking-normal text-stone-950 sm:text-5xl lg:text-6xl dark:text-white">把生图、视频和 Agent 串进同一张画布</h1>
+                        <h1 className="mt-8 max-w-4xl text-balance text-4xl font-semibold leading-[1.04] tracking-normal text-stone-950 sm:mt-9 sm:text-5xl lg:text-6xl dark:text-white">把生图、视频和 Agent 串进同一张画布</h1>
                         <p className="mt-5 max-w-2xl text-base leading-7 text-stone-600 dark:text-stone-300">
                             面向 RelayBases 用户的创作入口。获取 API Key 后，在画布配置里分别填写媒体 Key 和文本 Key，即可使用图片生成、视频任务、Agent 编排和精选提示词库。
                         </p>
