@@ -134,24 +134,24 @@ async function buildRelayBasesVideoPayload(config: AiConfig, model: string, prom
     if (modelName === "veo-omni-flash-video-edit") {
         if (!videos[0]) throw new Error("视频编辑需要连接一个参考视频");
         payload.video_url = videos[0];
-        if (images.length) payload.Ingredients_images = images.slice(0, 6);
+        if (images.length) payload.Ingredients_images = images.slice(0, 5);
         return payload;
     }
 
     if (modelName === "veo-omni-flash") {
-        if (images.length) payload.Ingredients_images = images.slice(0, 6);
+        if (images.length) payload.Ingredients_images = images.slice(0, 5);
         return payload;
     }
 
     if (modelName === "video-fast-720p" || modelName === "video-pro-720p" || modelName === "video-pro-1080p") {
         if (images[0]) payload.image_url = images[0];
-        if (images.length > 1) payload.extra_images = images.slice(1);
+        if (images.length > 1) payload.extra_images = images.slice(1, 5);
         if (videos.length) payload.extra_videos = videos;
         if (audios.length) payload.extra_audios = audios;
         return payload;
     }
 
-    if (images.length) payload.images = images.slice(0, 9);
+    if (images.length) payload.images = images.slice(0, 5);
     return payload;
 }
 

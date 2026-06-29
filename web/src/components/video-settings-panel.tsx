@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Switch } from "antd";
 
 import { ImageSettingsTheme } from "@/components/image-settings-panel";
@@ -102,7 +102,7 @@ export function VideoSettingsPanel({ config, onConfigChange, theme, showTitle = 
                                 {value}s
                             </OptionPill>
                         ))}
-                        <NumberInput value={seconds} min={timing.min} max={timing.max} disabled={timing.fixed} theme={theme} onChange={(value) => onConfigChange("videoSeconds", value)} />
+                        <NumberInput value={timing.fixed ? seconds : config.videoSeconds || seconds} min={timing.min} max={timing.max} disabled={timing.fixed} theme={theme} onChange={(value) => onConfigChange("videoSeconds", value)} />
                     </div>
                 </SettingGroup>
             </div>
@@ -161,7 +161,7 @@ function SeedanceVideoSettingsPanel({ config, onConfigChange, theme, showTitle, 
                             </OptionPill>
                         ))}
                     </div>
-                    <NumberInput value={String(duration)} min={-1} max={15} theme={theme} onChange={(value) => onConfigChange("videoSeconds", value)} />
+                    <NumberInput value={config.videoSeconds || String(duration)} min={-1} max={15} theme={theme} onChange={(value) => onConfigChange("videoSeconds", value)} />
                 </SettingGroup>
                 <SettingGroup title="输出" color={theme.node.muted}>
                     <div className="grid gap-2 rounded-xl border p-2.5" style={{ borderColor: theme.node.stroke }}>
@@ -253,6 +253,28 @@ function SettingGroup({ title, color, children }: { title: string; color: string
 }
 
 function NumberInput({ value, min, max, disabled = false, theme, onChange }: { value: string; min: number; max: number; disabled?: boolean; theme: CanvasTheme; onChange: (value: string) => void }) {
+    const [draft, setDraft] = useState(value);
+
+    useEffect(() => {
+        setDraft(value);
+    }, [value]);
+
+    const commit = () => {
+        if (disabled) return;
+        const raw = String(draft).trim();
+        if (min <= -1 && raw === "-1") {
+            onChange("-1");
+            return;
+        }
+        const numberValue = Math.floor(Number(raw));
+        const fallback = Math.max(min, Math.min(max, Number(value) || min));
+        const next = Number.isFinite(numberValue) ? numberValue : fallback;
+        const clamped = Math.max(min, Math.min(max, next));
+        const normalized = String(clamped);
+        setDraft(normalized);
+        onChange(normalized);
+    };
+
     return (
         <input
             type="number"
@@ -261,8 +283,15 @@ function NumberInput({ value, min, max, disabled = false, theme, onChange }: { v
             disabled={disabled}
             className="h-9 rounded-full border bg-transparent px-3 text-center text-sm outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
             style={{ borderColor: theme.node.stroke, color: theme.node.text, WebkitTextFillColor: theme.node.text, opacity: disabled ? 0.55 : 1 }}
-            value={value}
-            onChange={(event) => onChange(event.target.value)}
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            onBlur={commit}
+            onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                    event.currentTarget.blur();
+                    commit();
+                }
+            }}
             onMouseDown={(event) => event.stopPropagation()}
         />
     );
