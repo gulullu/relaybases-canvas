@@ -47,6 +47,7 @@ type SyncDomainOptions<T> = {
 export type RemoteSyncStorage = {
     readFile: (path: string) => Promise<Blob | null>;
     writeFile: (path: string, file: Blob, contentType?: string) => Promise<void>;
+    archivePublicMediaUrl?: (url: string, options?: { fileName?: string; contentType?: string }) => Promise<string>;
 };
 
 type SyncDomainResult<T> = {
@@ -172,6 +173,12 @@ async function syncDomain<T>(storage: RemoteSyncStorage, onProgress: AppSyncProg
             await options.applyData?.(mergedData);
         }
 
+        if (storage.archivePublicMediaUrl) {
+            emitProgress(onProgress, { domain: options.key, label: options.label, stage: "归档外部媒体", status: "active" });
+            const archivedMediaUrls = await archiveExternalMediaUrls(storage, options.key, mergedData, onProgress);
+            if (archivedMediaUrls) await options.applyData?.(mergedData);
+        }
+
         emitProgress(onProgress, { domain: options.key, label: options.label, stage: "上传新增媒体", status: "active" });
         const uploaded = await uploadChangedFiles(storage, options.key, mergedData, remoteManifest?.files || [], onProgress);
         const manifest: DomainManifest<T> = { app: "infinite-canvas", version: 1, domain: options.key, exportedAt: new Date().toISOString(), data: mergedData, files: uploaded.files };
@@ -283,6 +290,117 @@ async function uploadChangedFiles<T>(storage: RemoteSyncStorage, domain: DomainK
     });
 
     return { files, uploadedFiles, uploadedBytes };
+}
+
+type ExternalMediaUrlRepair = {
+    url: string;
+    fileName?: string;
+    contentType?: string;
+    apply: (url: string) => void;
+};
+
+async function archiveExternalMediaUrls<T>(storage: RemoteSyncStorage, domain: DomainKey, data: T, onProgress?: AppSyncProgress) {
+    if (!storage.archivePublicMediaUrl) return 0;
+    const repairs = collectExternalMediaUrlRepairs(data);
+    if (!repairs.length) return 0;
+
+    const byUrl = new Map<string, { url: string; fileName?: string; contentType?: string; repairs: ExternalMediaUrlRepair[] }>();
+    for (const repair of repairs) {
+        const current = byUrl.get(repair.url);
+        if (current) {
+            current.repairs.push(repair);
+            continue;
+        }
+        byUrl.set(repair.url, { url: repair.url, fileName: repair.fileName, contentType: repair.contentType, repairs: [repair] });
+    }
+
+    const tasks = Array.from(byUrl.values());
+    let archived = 0;
+    let checked = 0;
+    await runWithConcurrency(tasks, FILE_CONCURRENCY, async (task) => {
+        try {
+            const archivedUrl = await storage.archivePublicMediaUrl!(task.url, { fileName: task.fileName, contentType: task.contentType });
+            task.repairs.forEach((repair) => repair.apply(archivedUrl));
+            archived += 1;
+        } catch (error) {
+            console.warn("Archive external media URL failed.", { url: task.url, error });
+        } finally {
+            checked += 1;
+            emitProgress(onProgress, { domain, label: domainLabel(domain), stage: "归档外部媒体", current: checked, total: tasks.length, status: "active" });
+        }
+    });
+    return archived;
+}
+
+function collectExternalMediaUrlRepairs(value: unknown, repairs: ExternalMediaUrlRepair[] = []) {
+    if (!value || typeof value !== "object") return repairs;
+    if (Array.isArray(value)) {
+        value.forEach((item) => collectExternalMediaUrlRepairs(item, repairs));
+        return repairs;
+    }
+
+    const record = value as Record<string, unknown>;
+    const nodeType = getStringField(record, "type");
+    const metadata = record.metadata && typeof record.metadata === "object" ? (record.metadata as Record<string, unknown>) : null;
+    if ((nodeType === "video" || nodeType === "audio") && metadata) {
+        const content = getStringField(metadata, "content");
+        const storageKey = getStringField(metadata, "storageKey");
+        const mimeType = getStringField(metadata, "mimeType");
+        if (!storageKey && isExternalMediaUrl(content) && isMediaUrlCandidate(content, mimeType, nodeType)) {
+            repairs.push({
+                url: content,
+                fileName: mediaFileNameFromUrl(content, `${nodeType}.${nodeType === "audio" ? "mp3" : "mp4"}`),
+                contentType: mimeType || (nodeType === "audio" ? "audio/mpeg" : "video/mp4"),
+                apply: (url) => {
+                    metadata.content = url;
+                },
+            });
+        }
+    }
+
+    const url = getStringField(record, "url");
+    const storageKey = getStringField(record, "storageKey");
+    const mimeType = getStringField(record, "mimeType") || getStringField(record, "type");
+    const kind = getStringField(record, "kind");
+    if (!storageKey && isExternalMediaUrl(url) && isMediaUrlCandidate(url, mimeType, kind)) {
+        repairs.push({
+            url,
+            fileName: mediaFileNameFromUrl(url, `${kind === "audio" ? "audio" : "video"}.${kind === "audio" ? "mp3" : "mp4"}`),
+            contentType: mimeType.includes("/") ? mimeType : kind === "audio" ? "audio/mpeg" : "video/mp4",
+            apply: (archivedUrl) => {
+                record.url = archivedUrl;
+            },
+        });
+    }
+
+    Object.values(record).forEach((item) => collectExternalMediaUrlRepairs(item, repairs));
+    return repairs;
+}
+
+function isExternalMediaUrl(value: string) {
+    if (!/^https:\/\//i.test(value || "")) return false;
+    try {
+        const url = new URL(value);
+        return !(url.origin === "https://relaybases.com" && url.pathname.startsWith("/api/canvas-sync/public/"));
+    } catch {
+        return false;
+    }
+}
+
+function isMediaUrlCandidate(url: string, mimeType: string, kind: string) {
+    const normalizedMimeType = mimeType.toLowerCase();
+    const normalizedKind = kind.toLowerCase();
+    if (normalizedMimeType.startsWith("video/") || normalizedMimeType.startsWith("audio/")) return true;
+    if (normalizedKind === "video" || normalizedKind === "audio") return true;
+    return /\.(mp4|mov|webm|m4a|mp3|wav|aac)(?:[?#]|$)/i.test(url) || /\/media\/(videos|audio)\//i.test(url);
+}
+
+function mediaFileNameFromUrl(value: string, fallback: string) {
+    try {
+        return new URL(value).pathname.split("/").pop() || fallback;
+    } catch {
+        return fallback;
+    }
 }
 
 async function hydrateAsset(asset: Asset): Promise<Asset> {

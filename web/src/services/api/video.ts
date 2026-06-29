@@ -2,7 +2,7 @@ import axios from "axios";
 
 import { getDataUrlByteSize } from "@/lib/image-utils";
 import { normalizeRelayBasesVideoDuration } from "@/lib/relaybases-video";
-import { uploadRelayBasesPublicMedia } from "@/services/cloud-sync";
+import { copyRelayBasesPublicMedia, uploadRelayBasesPublicMedia } from "@/services/cloud-sync";
 import { getMediaBlob, uploadMediaFile, type UploadedFile } from "@/services/file-storage";
 import { getImageBlob, imageToDataUrl } from "@/services/image-storage";
 import { boolConfig, buildSeedancePromptText, isSeedanceVideoConfig, normalizeSeedanceDuration, normalizeSeedanceRatio, normalizeSeedanceResolution, seedanceVideoReferenceError, SEEDANCE_REFERENCE_LIMITS } from "@/lib/seedance-video";
@@ -98,9 +98,12 @@ export async function pollVideoGenerationTask(config: AiConfig, task: VideoGener
     return task.provider === "seedance" ? pollSeedanceTask(requestConfig, task, options) : pollOpenAIVideoTask(requestConfig, task, options);
 }
 
-export async function storeGeneratedVideo(result: VideoGenerationResult): Promise<UploadedFile> {
+export async function storeGeneratedVideo(result: VideoGenerationResult, options: { apiKey?: string; signal?: AbortSignal } = {}): Promise<UploadedFile> {
     if (result.blob) return uploadMediaFile(result.blob, "video");
-    if (result.url) return { url: result.url, storageKey: "", bytes: 0, mimeType: result.mimeType || "video/mp4" };
+    if (result.url) {
+        const url = options.apiKey ? await copyRelayBasesPublicMedia(options.apiKey, result.url, { fileName: mediaFileNameFromUrl(result.url, "generated-video.mp4"), contentType: result.mimeType || "video/mp4", signal: options.signal }) : result.url;
+        return { url, storageKey: "", bytes: 0, mimeType: result.mimeType || "video/mp4" };
+    }
     throw new Error("视频接口没有返回可播放的视频");
 }
 
@@ -457,6 +460,15 @@ async function assertVideoBlob(blob: Blob) {
 
 function isPublicMediaUrl(value: string) {
     return /^https?:\/\//i.test(value || "");
+}
+
+function mediaFileNameFromUrl(value: string, fallback: string) {
+    try {
+        const pathname = new URL(value).pathname;
+        return pathname.split("/").pop() || fallback;
+    } catch {
+        return fallback;
+    }
 }
 
 function delay(ms: number, signal?: AbortSignal) {

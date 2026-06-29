@@ -54,6 +54,7 @@ export function createRelayBasesCloudSyncStorage(apiKey: string): RemoteSyncStor
             });
             if (!response.ok) await throwCloudSyncError(response, "上传云端同步文件失败");
         },
+        archivePublicMediaUrl: (url, options) => copyRelayBasesPublicMedia(normalizedApiKey, url, options),
     };
 }
 
@@ -90,6 +91,49 @@ export async function uploadRelayBasesPublicMedia(apiKey: string, file: Blob, op
         if (options.signal?.aborted) throw new DOMException("Aborted", "AbortError");
         if (error instanceof Error && error.name === "AbortError") throw new Error("上传公开参考素材超时，请稍后重试");
         if (error instanceof TypeError) throw new Error("无法连接 RelayBases 素材上传服务，请检查网络状态");
+        throw error;
+    } finally {
+        window.clearTimeout(timer);
+        options.signal?.removeEventListener("abort", abort);
+    }
+}
+
+export async function copyRelayBasesPublicMedia(apiKey: string, sourceUrl: string, options: { fileName?: string; contentType?: string; signal?: AbortSignal } = {}) {
+    const normalizedApiKey = apiKey.trim();
+    if (!normalizedApiKey) throw new Error("请先填写媒体 API Key");
+    const normalizedSourceUrl = sourceUrl.trim();
+    if (!/^https:\/\//i.test(normalizedSourceUrl)) throw new Error("视频结果不是可归档的 HTTPS 地址");
+    if (isRelayBasesCanvasPublicMediaUrl(normalizedSourceUrl)) return normalizedSourceUrl;
+
+    const session = await getCloudSyncSession(normalizedApiKey);
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => controller.abort(), CLOUD_SYNC_TIMEOUT_MS);
+    const abort = () => controller.abort();
+    options.signal?.addEventListener("abort", abort, { once: true });
+
+    try {
+        const response = await fetch(`${CLOUD_SYNC_BASE_URL}/public-copy`, {
+            method: "POST",
+            headers: {
+                Authorization: `Bearer ${session.token}`,
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                url: normalizedSourceUrl,
+                fileName: options.fileName,
+                contentType: options.contentType,
+            }),
+            signal: controller.signal,
+        });
+        if (!response.ok) await throwCloudSyncError(response, "归档公开视频失败");
+        const payload = (await response.json()) as PublicMediaUploadResponse;
+        const url = payload.data?.url;
+        if (!payload.success || !url || !/^https?:\/\//i.test(url)) throw new Error("归档公开视频响应无效");
+        return url;
+    } catch (error) {
+        if (options.signal?.aborted) throw new DOMException("Aborted", "AbortError");
+        if (error instanceof Error && error.name === "AbortError") throw new Error("归档公开视频超时，请稍后重试");
+        if (error instanceof TypeError) throw new Error("无法连接 RelayBases 素材归档服务，请检查网络状态");
         throw error;
     } finally {
         window.clearTimeout(timer);
@@ -167,4 +211,13 @@ function withTimeout<T>(promise: Promise<T>, message: string) {
         const timer = window.setTimeout(() => reject(new Error(message)), CLOUD_SYNC_TIMEOUT_MS);
         promise.then(resolve, reject).finally(() => window.clearTimeout(timer));
     });
+}
+
+function isRelayBasesCanvasPublicMediaUrl(value: string) {
+    try {
+        const url = new URL(value);
+        return url.origin === "https://relaybases.com" && url.pathname.startsWith("/api/canvas-sync/public/");
+    } catch {
+        return false;
+    }
 }
