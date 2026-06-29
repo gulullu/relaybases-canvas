@@ -8,6 +8,7 @@ import { App, ConfigProvider } from "antd";
 import enUS from "antd/locale/en_US";
 import zhCN from "antd/locale/zh_CN";
 
+import { CloudSyncAutoRunner } from "@/components/layout/cloud-sync-auto-runner";
 import { ClientRootInit } from "@/components/layout/client-root-init";
 import { LanguageDomTranslator } from "@/components/layout/language-dom-translator";
 import { getAntThemeConfig } from "@/lib/app-theme";
@@ -40,6 +41,7 @@ export function AppProviders({ children }: { children: ReactNode }) {
                 <App>
                     <QueryClientProvider client={queryClient}>
                         <LanguageDomTranslator />
+                        <CloudSyncAutoRunner />
                         <ClientRootInit>{children}</ClientRootInit>
                     </QueryClientProvider>
                 </App>

@@ -1,14 +1,16 @@
 "use client";
 
-import { App, Button, Form, Input, Modal, Progress, Segmented, Select, Tabs } from "antd";
+import { App, Button, Form, Input, Modal, Progress, Segmented, Select, Switch, Tabs } from "antd";
 import { Cloud, RefreshCw, Wifi } from "lucide-react";
 import { useState } from "react";
 
 import { ModelPicker } from "@/components/model-picker";
 import { fetchChannelModels } from "@/services/api/image";
-import { syncAppDataToWebdav, type AppSyncDomainKey, type AppSyncProgressEvent } from "@/services/app-sync";
+import { getCloudSyncApiKey, hasCloudSyncKey } from "@/services/cloud-sync";
+import { syncAppDataToCloud, syncAppDataToWebdav, type AppSyncDomainKey, type AppSyncProgressEvent } from "@/services/app-sync";
 import { testWebdavConnection, WEBDAV_MANIFEST_FILE_NAME } from "@/services/webdav-sync";
 import { audioFormatOptions, audioVoiceOptions, normalizeAudioSpeedValue } from "@/lib/audio-generation";
+import { useI18n } from "@/lib/i18n";
 import {
     encodeChannelModel,
     filterModelsByCapability,
@@ -67,21 +69,28 @@ function createWebdavDomainProgress(): Record<AppSyncDomainKey, WebdavDomainProg
 
 export function AppConfigModal() {
     const { message } = App.useApp();
+    const { language, t } = useI18n();
     const [activeTab, setActiveTab] = useState("channels");
+    const [syncingCloud, setSyncingCloud] = useState(false);
     const [testingWebdav, setTestingWebdav] = useState(false);
     const [syncingWebdav, setSyncingWebdav] = useState(false);
     const [loadingTextModels, setLoadingTextModels] = useState(false);
+    const [cloudSyncStatus, setCloudSyncStatus] = useState("");
+    const [cloudDomainProgress, setCloudDomainProgress] = useState(createWebdavDomainProgress);
     const [webdavSyncStatus, setWebdavSyncStatus] = useState("");
     const [webdavDomainProgress, setWebdavDomainProgress] = useState(createWebdavDomainProgress);
     const config = useConfigStore((state) => state.config);
+    const cloudSync = useConfigStore((state) => state.cloudSync);
     const webdav = useConfigStore((state) => state.webdav);
     const updateConfig = useConfigStore((state) => state.updateConfig);
     const updateConfigValues = useConfigStore((state) => state.updateConfigValues);
+    const updateCloudSyncConfig = useConfigStore((state) => state.updateCloudSyncConfig);
     const updateWebdavConfig = useConfigStore((state) => state.updateWebdavConfig);
     const isConfigOpen = useConfigStore((state) => state.isConfigOpen);
     const shouldPromptContinue = useConfigStore((state) => state.shouldPromptContinue);
     const setConfigDialogOpen = useConfigStore((state) => state.setConfigDialogOpen);
     const clearPromptContinue = useConfigStore((state) => state.clearPromptContinue);
+    const cloudSyncReady = hasCloudSyncKey(config.mediaApiKey, config.textApiKey);
     const webdavReady = Boolean(webdav.url.trim());
 
     const closeConfig = () => {
@@ -163,6 +172,45 @@ export function AppConfigModal() {
                 status: event.status,
             },
         }));
+    };
+
+    const updateCloudProgress = (event: AppSyncProgressEvent) => {
+        setCloudSyncStatus(event.stage);
+        if (!event.domain) return;
+        setCloudDomainProgress((current) => ({
+            ...current,
+            [event.domain as AppSyncDomainKey]: {
+                label: event.label || webdavDomainLabels[event.domain as AppSyncDomainKey],
+                stage: event.stage,
+                current: event.current,
+                total: event.total,
+                status: event.status,
+            },
+        }));
+    };
+
+    const syncCloud = async () => {
+        const apiKey = getCloudSyncApiKey(config.mediaApiKey, config.textApiKey);
+        if (!apiKey) {
+            message.error("请先填写媒体 API Key 或文本 API Key");
+            return;
+        }
+        setSyncingCloud(true);
+        setCloudDomainProgress(createWebdavDomainProgress());
+        setCloudSyncStatus("准备云同步");
+        try {
+            const result = await syncAppDataToCloud(apiKey, updateCloudProgress);
+            updateCloudSyncConfig("lastSyncedAt", result.syncedAt);
+            updateCloudSyncConfig("lastError", "");
+            message.success(`云同步完成：${result.projects} 个画布，${result.assets} 个素材，${result.imageLogs + result.videoLogs} 条记录，本次上传 ${result.uploadedFiles} 个文件 ${formatBytes(result.uploadedBytes)}`);
+        } catch (error) {
+            const messageText = error instanceof Error ? error.message : "RelayBases 云同步失败";
+            setCloudSyncStatus(messageText);
+            updateCloudSyncConfig("lastError", messageText);
+            message.error(messageText);
+        } finally {
+            setSyncingCloud(false);
+        }
     };
 
     const syncWebdav = async () => {
@@ -368,57 +416,95 @@ export function AppConfigModal() {
                         ),
                     },
                     {
-                        key: "webdav",
-                        label: "WebDAV",
+                        key: "sync",
+                        label: "同步",
                         children: (
                             <Form layout="vertical" requiredMark={false}>
-                                <section className="rounded-lg border border-stone-200 p-3 dark:border-stone-800">
+                                <section className="rounded-xl border border-emerald-200 bg-emerald-50/40 p-4 dark:border-emerald-900/60 dark:bg-emerald-950/20">
                                     <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
                                         <div>
                                             <div className="flex items-center gap-2 text-sm font-semibold">
                                                 <Cloud className="size-4" />
-                                                WebDAV 同步
+                                                RelayBases 云同步
                                             </div>
-                                            <div className="mt-1 text-xs text-stone-500">同步画布、我的素材、生成记录和本地媒体文件，不包含 AI API Key；服务不支持 CORS 时可走 Next.js 转发。</div>
+                                            <div className="mt-1 text-xs leading-5 text-stone-500">同步画布、我的素材、生成记录和本地媒体文件，不同步 API Key。换设备后填入同一个 RelayBases Key 即可恢复。</div>
                                         </div>
-                                        <div className="text-xs text-stone-500">{webdav.lastSyncedAt ? `上次同步 ${formatWebdavTime(webdav.lastSyncedAt)}` : "尚未同步"}</div>
+                                        <Switch
+                                            checked={cloudSync.enabled}
+                                            checkedChildren="已开启"
+                                            unCheckedChildren="未开启"
+                                            onChange={(checked) => {
+                                                if (checked && !cloudSyncReady) {
+                                                    message.error("请先填写媒体 API Key 或文本 API Key");
+                                                    return;
+                                                }
+                                                updateCloudSyncConfig("enabled", checked);
+                                                updateCloudSyncConfig("lastError", "");
+                                            }}
+                                        />
                                     </div>
-                                    <div className="grid gap-4 md:grid-cols-2">
-                                        <Form.Item label="连接方式" className="mb-4 md:col-span-2">
-                                            <Segmented
-                                                block
-                                                value={webdav.proxyMode}
-                                                onChange={(value) => updateWebdavConfig("proxyMode", value as typeof webdav.proxyMode)}
-                                                options={[
-                                                    { label: "前端直连", value: "direct" },
-                                                    { label: "Next.js 转发", value: "nextjs" },
-                                                ]}
-                                            />
-                                        </Form.Item>
-                                        <Form.Item label="WebDAV 地址" className="mb-4">
-                                            <Input value={webdav.url} placeholder="https://nas.example.com/webdav" onChange={(event) => updateWebdavConfig("url", event.target.value)} />
-                                        </Form.Item>
-                                        <Form.Item label="远程目录" extra={`会在该目录下分业务目录保存，每个目录包含 ${WEBDAV_MANIFEST_FILE_NAME} 和 files/`} className="mb-4">
-                                            <Input value={webdav.directory} placeholder="infinite-canvas" onChange={(event) => updateWebdavConfig("directory", event.target.value)} />
-                                        </Form.Item>
-                                        <Form.Item label="用户名" className="mb-0">
-                                            <Input value={webdav.username} autoComplete="username" onChange={(event) => updateWebdavConfig("username", event.target.value)} />
-                                        </Form.Item>
-                                        <Form.Item label="密码 / 应用密码" className="mb-0">
-                                            <Input.Password value={webdav.password} autoComplete="current-password" onChange={(event) => updateWebdavConfig("password", event.target.value)} />
-                                        </Form.Item>
+                                    <div className="flex flex-wrap items-center gap-3 text-xs text-stone-500">
+                                        <span>{cloudSync.lastSyncedAt ? `${t("上次同步")} ${formatWebdavTime(cloudSync.lastSyncedAt, language)}` : t("尚未同步")}</span>
+                                        {cloudSync.lastError ? <span className="text-red-600 dark:text-red-300">{language === "en" ? `Last failure: ${cloudSync.lastError}` : `最近失败：${cloudSync.lastError}`}</span> : null}
                                     </div>
                                     <div className="mt-4 flex flex-wrap items-center gap-2">
-                                        <Button icon={<Wifi className="size-4" />} disabled={!webdavReady || syncingWebdav} loading={testingWebdav} onClick={() => void testWebdav()}>
-                                            测试连接
+                                        <Button type="primary" icon={<RefreshCw className="size-4" />} disabled={!cloudSyncReady} loading={syncingCloud} onClick={() => void syncCloud()}>
+                                            {syncingCloud ? "云同步中" : "立即云同步"}
                                         </Button>
-                                        <Button type="primary" icon={<RefreshCw className="size-4" />} disabled={!webdavReady || testingWebdav} loading={syncingWebdav} onClick={() => void syncWebdav()}>
-                                            {syncingWebdav ? "同步中" : "立即同步"}
-                                        </Button>
-                                        {webdavSyncStatus ? <span className="text-xs text-stone-500">{webdavSyncStatus}</span> : null}
+                                        {cloudSyncStatus ? <span className="text-xs text-stone-500">{cloudSyncStatus}</span> : null}
                                     </div>
-                                    {syncingWebdav || webdavSyncStatus ? <WebdavProgressGrid progress={webdavDomainProgress} /> : null}
+                                    {syncingCloud || cloudSyncStatus ? <WebdavProgressGrid progress={cloudDomainProgress} /> : null}
                                 </section>
+                                <details className="mt-4 rounded-lg border border-stone-200 p-3 dark:border-stone-800">
+                                    <summary className="cursor-pointer text-sm font-semibold text-stone-700 dark:text-stone-200">高级同步：WebDAV</summary>
+                                    <section className="mt-4">
+                                        <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+                                            <div>
+                                                <div className="flex items-center gap-2 text-sm font-semibold">
+                                                    <Cloud className="size-4" />
+                                                    WebDAV 同步
+                                                </div>
+                                                <div className="mt-1 text-xs text-stone-500">适合已有 NAS 或自定义存储的用户。同步内容不包含 AI API Key；服务不支持 CORS 时可走 Next.js 转发。</div>
+                                            </div>
+                                            <div className="text-xs text-stone-500">{webdav.lastSyncedAt ? `${t("上次同步")} ${formatWebdavTime(webdav.lastSyncedAt, language)}` : t("尚未同步")}</div>
+                                        </div>
+                                        <div className="grid gap-4 md:grid-cols-2">
+                                            <Form.Item label="连接方式" className="mb-4 md:col-span-2">
+                                                <Segmented
+                                                    block
+                                                    value={webdav.proxyMode}
+                                                    onChange={(value) => updateWebdavConfig("proxyMode", value as typeof webdav.proxyMode)}
+                                                    options={[
+                                                        { label: "前端直连", value: "direct" },
+                                                        { label: "Next.js 转发", value: "nextjs" },
+                                                    ]}
+                                                />
+                                            </Form.Item>
+                                            <Form.Item label="WebDAV 地址" className="mb-4">
+                                                <Input value={webdav.url} placeholder="https://nas.example.com/webdav" onChange={(event) => updateWebdavConfig("url", event.target.value)} />
+                                            </Form.Item>
+                                            <Form.Item label="远程目录" extra={`会在该目录下分业务目录保存，每个目录包含 ${WEBDAV_MANIFEST_FILE_NAME} 和 files/`} className="mb-4">
+                                                <Input value={webdav.directory} placeholder="infinite-canvas" onChange={(event) => updateWebdavConfig("directory", event.target.value)} />
+                                            </Form.Item>
+                                            <Form.Item label="用户名" className="mb-0">
+                                                <Input value={webdav.username} autoComplete="username" onChange={(event) => updateWebdavConfig("username", event.target.value)} />
+                                            </Form.Item>
+                                            <Form.Item label="密码 / 应用密码" className="mb-0">
+                                                <Input.Password value={webdav.password} autoComplete="current-password" onChange={(event) => updateWebdavConfig("password", event.target.value)} />
+                                            </Form.Item>
+                                        </div>
+                                        <div className="mt-4 flex flex-wrap items-center gap-2">
+                                            <Button icon={<Wifi className="size-4" />} disabled={!webdavReady || syncingWebdav} loading={testingWebdav} onClick={() => void testWebdav()}>
+                                                测试连接
+                                            </Button>
+                                            <Button type="primary" icon={<RefreshCw className="size-4" />} disabled={!webdavReady || testingWebdav} loading={syncingWebdav} onClick={() => void syncWebdav()}>
+                                                {syncingWebdav ? "同步中" : "立即同步"}
+                                            </Button>
+                                            {webdavSyncStatus ? <span className="text-xs text-stone-500">{webdavSyncStatus}</span> : null}
+                                        </div>
+                                        {syncingWebdav || webdavSyncStatus ? <WebdavProgressGrid progress={webdavDomainProgress} /> : null}
+                                    </section>
+                                </details>
                             </Form>
                         ),
                     },
@@ -432,11 +518,12 @@ function normalizeImageCount(value: string) {
     return String(Math.max(1, Math.min(15, Math.floor(Math.abs(Number(value)) || 3))));
 }
 
-function formatWebdavTime(value: string) {
-    return new Date(value).toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+function formatWebdavTime(value: string, language: "zh" | "en" = "zh") {
+    return new Date(value).toLocaleString(language === "en" ? "en-US" : "zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
 }
 
 function WebdavProgressGrid({ progress }: { progress: Record<AppSyncDomainKey, WebdavDomainProgress> }) {
+    const { t } = useI18n();
     return (
         <div className="mt-3 grid gap-2">
             {webdavDomainKeys.map((key) => {
@@ -447,7 +534,7 @@ function WebdavProgressGrid({ progress }: { progress: Record<AppSyncDomainKey, W
                         <div className="mb-1 flex min-w-0 items-center justify-between gap-3 text-xs">
                             <span className="shrink-0 font-medium text-stone-700 dark:text-stone-200">{item.label}</span>
                             <span className="min-w-0 truncate text-right text-stone-500">
-                                {item.stage}
+                                {translateProgressStage(item.stage, t)}
                                 {count ? ` · ${count}` : ""}
                             </span>
                         </div>
@@ -457,6 +544,12 @@ function WebdavProgressGrid({ progress }: { progress: Record<AppSyncDomainKey, W
             })}
         </div>
     );
+}
+
+function translateProgressStage(stage: string, t: (value: string) => string) {
+    if (stage.startsWith("上传清单")) return stage.replace("上传清单", t("上传清单"));
+    if (stage.startsWith("上传媒体")) return stage.replace("上传媒体", t("上传媒体"));
+    return t(stage);
 }
 
 function getWebdavProgressPercent(item: WebdavDomainProgress) {

@@ -59,6 +59,12 @@ export type WebdavSyncConfig = {
     lastSyncedAt: string;
 };
 
+export type CloudSyncConfig = {
+    enabled: boolean;
+    lastSyncedAt: string;
+    lastError: string;
+};
+
 export const CONFIG_STORE_KEY = "infinite-canvas:ai_config_store";
 export type ModelCapability = "image" | "video" | "text" | "audio";
 const CHANNEL_MODEL_SEPARATOR = "::";
@@ -142,13 +148,21 @@ export const defaultWebdavSyncConfig: WebdavSyncConfig = {
     lastSyncedAt: "",
 };
 
+export const defaultCloudSyncConfig: CloudSyncConfig = {
+    enabled: false,
+    lastSyncedAt: "",
+    lastError: "",
+};
+
 type ConfigStore = {
     config: AiConfig;
+    cloudSync: CloudSyncConfig;
     webdav: WebdavSyncConfig;
     isConfigOpen: boolean;
     shouldPromptContinue: boolean;
     updateConfig: <K extends keyof AiConfig>(key: K, value: AiConfig[K]) => void;
     updateConfigValues: (values: Partial<AiConfig>) => void;
+    updateCloudSyncConfig: <K extends keyof CloudSyncConfig>(key: K, value: CloudSyncConfig[K]) => void;
     updateWebdavConfig: <K extends keyof WebdavSyncConfig>(key: K, value: WebdavSyncConfig[K]) => void;
     isAiConfigReady: (config: AiConfig, model: string) => boolean;
     openConfigDialog: (shouldPromptContinue?: boolean) => void;
@@ -219,11 +233,19 @@ export const useConfigStore = create<ConfigStore>()(
     persist(
         (set, get) => ({
             config: defaultConfig,
+            cloudSync: defaultCloudSyncConfig,
             webdav: defaultWebdavSyncConfig,
             isConfigOpen: false,
             shouldPromptContinue: false,
             updateConfig: (key, value) => set((state) => ({ config: normalizeRelayBasesConfig({ ...state.config, [key]: value }) })),
             updateConfigValues: (values) => set((state) => ({ config: normalizeRelayBasesConfig({ ...state.config, ...values }) })),
+            updateCloudSyncConfig: (key, value) =>
+                set((state) => ({
+                    cloudSync: {
+                        ...state.cloudSync,
+                        [key]: value,
+                    },
+                })),
             updateWebdavConfig: (key, value) =>
                 set((state) => ({
                     webdav: {
@@ -238,14 +260,16 @@ export const useConfigStore = create<ConfigStore>()(
         }),
         {
             name: CONFIG_STORE_KEY,
-            partialize: (state) => ({ config: state.config, webdav: state.webdav }),
+            partialize: (state) => ({ config: state.config, cloudSync: state.cloudSync, webdav: state.webdav }),
             merge: (persisted, current) => {
                 const persistedState = (persisted || {}) as Partial<ConfigStore>;
                 const persistedConfig = (persistedState.config || {}) as Partial<AiConfig>;
+                const persistedCloudSync = (persistedState.cloudSync || {}) as Partial<CloudSyncConfig>;
                 const persistedWebdav = (persistedState.webdav || {}) as Partial<WebdavSyncConfig>;
                 const config = normalizeRelayBasesConfig({ ...defaultConfig, ...persistedConfig });
                 return {
                     ...current,
+                    cloudSync: { ...defaultCloudSyncConfig, ...persistedCloudSync },
                     webdav: { ...defaultWebdavSyncConfig, ...persistedWebdav },
                     config,
                 };
