@@ -12,9 +12,12 @@ const MODEL_TIMINGS: Record<string, RelayBasesVideoTiming> = {
     "veo-3-1": { min: 8, max: 8, defaultValue: 8, options: [8], fixed: true },
     "veo-omni-flash": { min: 10, max: 10, defaultValue: 10, options: [10], fixed: true },
     "veo-omni-flash-video-edit": { min: 4, max: 10, defaultValue: 10, options: [4, 6, 8, 10] },
+    "video-fast-480p": DEFAULT_TIMING,
     "video-fast-720p": DEFAULT_TIMING,
+    "video-pro-480p": DEFAULT_TIMING,
     "video-pro-720p": DEFAULT_TIMING,
     "video-pro-1080p": DEFAULT_TIMING,
+    "video-standard-720p": { min: 15, max: 15, defaultValue: 15, options: [15], fixed: true },
 };
 
 export function relayBasesVideoTiming(model: string): RelayBasesVideoTiming {

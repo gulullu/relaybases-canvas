@@ -143,7 +143,7 @@ async function buildRelayBasesVideoPayload(config: AiConfig, model: string, prom
         return payload;
     }
 
-    if (modelName === "video-fast-720p" || modelName === "video-pro-720p" || modelName === "video-pro-1080p") {
+    if (modelName === "video-fast-480p" || modelName === "video-fast-720p" || modelName === "video-pro-480p" || modelName === "video-pro-720p" || modelName === "video-pro-1080p" || modelName === "video-standard-720p") {
         if (images[0]) payload.image_url = images[0];
         if (images.length > 1) payload.extra_images = images.slice(1, 5);
         if (videos.length) payload.extra_videos = videos;
@@ -243,6 +243,7 @@ async function compressRelayBasesImageDataUrl(dataUrl: string) {
 function normalizeRelayBasesDuration(value: string, model: string) {
     if (model === "veo-3-1") return 8;
     if (model === "veo-omni-flash" || model === "veo-omni-flash-video-edit") return 10;
+    if (model === "video-standard-720p") return 15;
     if (model === "nana-banana-2" || model === "nana-banana-pro") return 4;
     const seconds = Math.floor(Number(value) || 6);
     return Math.max(4, Math.min(15, seconds));

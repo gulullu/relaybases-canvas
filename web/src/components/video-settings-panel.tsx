@@ -27,9 +27,12 @@ const relayBasesAspectRatioOptions = [
 ];
 
 const relayBasesVideoResolutionLabels: Record<string, string> = {
+    "video-fast-480p": "480p",
     "video-fast-720p": "720p",
+    "video-pro-480p": "480p",
     "video-pro-720p": "720p",
     "video-pro-1080p": "1080p",
+    "video-standard-720p": "720p",
 };
 
 type VideoSettingsPanelProps = {
