@@ -463,7 +463,7 @@ function InfiniteCanvasPage() {
             setAgentMode("local");
             return;
         }
-        openAgent("local");
+        openAgent("online");
     }, [projectLoaded, searchParams]);
 
     useEffect(() => {
@@ -2965,7 +2965,6 @@ function InfiniteCanvasPage() {
                     onUndoOps={undoAgentOps}
                     onPasteImage={pasteAssistantImage}
                     agentMode={agentMode}
-                    onAgentModeChange={setAgentMode}
                     autoConnectLocal={codexAutoConnect}
                     closing={assistantClosing}
                     onCollapse={closeAgent}
