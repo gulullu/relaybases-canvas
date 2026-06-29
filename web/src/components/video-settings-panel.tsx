@@ -41,6 +41,8 @@ type VideoSettingsPanelProps = {
 };
 
 export function VideoSettingsPanel({ config, onConfigChange, theme, showTitle = true, className = "w-[320px] space-y-4 rounded-2xl px-1 py-0.5" }: VideoSettingsPanelProps) {
+    const [editingSeconds, setEditingSeconds] = useState(false);
+
     if (isSeedanceVideoConfig({ ...config, model: config.videoModel || config.model })) {
         return <SeedanceVideoSettingsPanel config={config} onConfigChange={onConfigChange} theme={theme} showTitle={showTitle} className={className} />;
     }
@@ -52,6 +54,7 @@ export function VideoSettingsPanel({ config, onConfigChange, theme, showTitle = 
     const resolutionLabel = relayBasesVideoResolutionLabel(selectedModel);
     const videoCallMode = normalizeVideoCallMode(config.videoCallMode);
     const showCallMode = isRelayBasesVideoModel(config.videoModel || config.model);
+    const isPresetSecond = timing.options.some((value) => seconds === String(value));
 
     return (
         <ImageSettingsTheme theme={theme}>
@@ -98,11 +101,11 @@ export function VideoSettingsPanel({ config, onConfigChange, theme, showTitle = 
                 <SettingGroup title="秒数" color={theme.node.muted}>
                     <div className="grid grid-cols-3 gap-2.5">
                         {timing.options.map((value) => (
-                            <OptionPill key={value} selected={seconds === String(value)} theme={theme} onClick={() => onConfigChange("videoSeconds", String(value))}>
+                            <OptionPill key={value} selected={!editingSeconds && seconds === String(value)} theme={theme} onClick={() => onConfigChange("videoSeconds", String(value))}>
                                 {value}s
                             </OptionPill>
                         ))}
-                        <NumberInput value={timing.fixed ? seconds : config.videoSeconds || seconds} min={timing.min} max={timing.max} disabled={timing.fixed} theme={theme} onChange={(value) => onConfigChange("videoSeconds", value)} />
+                        <NumberInput value={timing.fixed ? seconds : config.videoSeconds || seconds} min={timing.min} max={timing.max} disabled={timing.fixed} selected={editingSeconds || !isPresetSecond} theme={theme} onChange={(value) => onConfigChange("videoSeconds", value)} onEditingChange={setEditingSeconds} />
                     </div>
                 </SettingGroup>
             </div>
@@ -111,12 +114,14 @@ export function VideoSettingsPanel({ config, onConfigChange, theme, showTitle = 
 }
 
 function SeedanceVideoSettingsPanel({ config, onConfigChange, theme, showTitle, className }: VideoSettingsPanelProps) {
+    const [editingSeconds, setEditingSeconds] = useState(false);
     const model = modelOptionName(config.videoModel || config.model);
     const resolution = normalizeSeedanceResolution(config.vquality, model);
     const ratio = normalizeSeedanceRatio(config.size);
     const duration = normalizeSeedanceDuration(config.videoSeconds);
     const generateAudio = boolConfig(config.videoGenerateAudio, true);
     const watermark = boolConfig(config.videoWatermark, false);
+    const isPresetDuration = seedanceDurationOptions.some((value) => duration === value);
 
     return (
         <ImageSettingsTheme theme={theme}>
@@ -156,12 +161,12 @@ function SeedanceVideoSettingsPanel({ config, onConfigChange, theme, showTitle, 
                 <SettingGroup title="时长" color={theme.node.muted}>
                     <div className="grid grid-cols-4 gap-2.5">
                         {seedanceDurationOptions.map((value) => (
-                            <OptionPill key={value} selected={duration === value} theme={theme} onClick={() => onConfigChange("videoSeconds", String(value))}>
+                            <OptionPill key={value} selected={!editingSeconds && duration === value} theme={theme} onClick={() => onConfigChange("videoSeconds", String(value))}>
                                 {value === -1 ? "智能" : `${value}s`}
                             </OptionPill>
                         ))}
                     </div>
-                    <NumberInput value={config.videoSeconds || String(duration)} min={-1} max={15} theme={theme} onChange={(value) => onConfigChange("videoSeconds", value)} />
+                    <NumberInput value={config.videoSeconds || String(duration)} min={-1} max={15} selected={editingSeconds || !isPresetDuration} theme={theme} onChange={(value) => onConfigChange("videoSeconds", value)} onEditingChange={setEditingSeconds} />
                 </SettingGroup>
                 <SettingGroup title="输出" color={theme.node.muted}>
                     <div className="grid gap-2 rounded-xl border p-2.5" style={{ borderColor: theme.node.stroke }}>
@@ -252,18 +257,42 @@ function SettingGroup({ title, color, children }: { title: string; color: string
     );
 }
 
-function NumberInput({ value, min, max, disabled = false, theme, onChange }: { value: string; min: number; max: number; disabled?: boolean; theme: CanvasTheme; onChange: (value: string) => void }) {
+function NumberInput({
+    value,
+    min,
+    max,
+    disabled = false,
+    selected = false,
+    theme,
+    onChange,
+    onEditingChange,
+}: {
+    value: string;
+    min: number;
+    max: number;
+    disabled?: boolean;
+    selected?: boolean;
+    theme: CanvasTheme;
+    onChange: (value: string) => void;
+    onEditingChange?: (editing: boolean) => void;
+}) {
     const [draft, setDraft] = useState(value);
 
     useEffect(() => {
         setDraft(value);
+        onEditingChange?.(false);
     }, [value]);
 
     const commit = () => {
-        if (disabled) return;
+        if (disabled) {
+            onEditingChange?.(false);
+            return;
+        }
         const raw = String(draft).trim();
         if (min <= -1 && raw === "-1") {
+            setDraft("-1");
             onChange("-1");
+            onEditingChange?.(false);
             return;
         }
         const numberValue = Math.floor(Number(raw));
@@ -273,6 +302,7 @@ function NumberInput({ value, min, max, disabled = false, theme, onChange }: { v
         const normalized = String(clamped);
         setDraft(normalized);
         onChange(normalized);
+        onEditingChange?.(false);
     };
 
     return (
@@ -282,9 +312,13 @@ function NumberInput({ value, min, max, disabled = false, theme, onChange }: { v
             max={max}
             disabled={disabled}
             className="h-9 rounded-full border bg-transparent px-3 text-center text-sm outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-            style={{ borderColor: theme.node.stroke, color: theme.node.text, WebkitTextFillColor: theme.node.text, opacity: disabled ? 0.55 : 1 }}
+            style={{ borderColor: selected ? theme.node.text : theme.node.stroke, background: selected ? theme.node.fill : "transparent", color: theme.node.text, WebkitTextFillColor: theme.node.text, opacity: disabled ? 0.55 : 1 }}
             value={draft}
-            onChange={(event) => setDraft(event.target.value)}
+            onFocus={() => onEditingChange?.(true)}
+            onChange={(event) => {
+                setDraft(event.target.value);
+                onEditingChange?.(true);
+            }}
             onBlur={commit}
             onKeyDown={(event) => {
                 if (event.key === "Enter") {
