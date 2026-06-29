@@ -1,6 +1,7 @@
 import axios from "axios";
 
 import { getDataUrlByteSize } from "@/lib/image-utils";
+import { normalizeRelayBasesVideoDuration } from "@/lib/relaybases-video";
 import { uploadRelayBasesPublicMedia } from "@/services/cloud-sync";
 import { getMediaBlob, uploadMediaFile, type UploadedFile } from "@/services/file-storage";
 import { getImageBlob, imageToDataUrl } from "@/services/image-storage";
@@ -110,7 +111,7 @@ async function buildRelayBasesVideoPayload(config: AiConfig, model: string, prom
     const payload: Record<string, unknown> = {
         model: modelName,
         prompt,
-        duration: normalizeRelayBasesDuration(config.videoSeconds, modelName),
+        duration: normalizeRelayBasesVideoDuration(config.videoSeconds, modelName),
         aspect_ratio: normalizeRelayBasesAspectRatio(config.size),
     };
 

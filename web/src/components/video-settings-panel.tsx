@@ -16,6 +16,7 @@ import {
     seedanceRatioOptions,
     seedanceResolutionOptions,
 } from "@/lib/seedance-video";
+import { normalizeRelayBasesVideoDuration, relayBasesVideoTiming } from "@/lib/relaybases-video";
 import { type CanvasTheme } from "@/lib/canvas-theme";
 import { isRelayBasesVideoModel, modelOptionName, normalizeVideoCallMode, type AiConfig } from "@/stores/use-config-store";
 
@@ -33,8 +34,6 @@ const sizeOptions = [
     { value: "auto", label: "auto", width: 0, height: 0 },
 ];
 
-const secondOptions = [4, 6, 8, 10, 15];
-
 type VideoSettingsPanelProps = {
     config: AiConfig;
     onConfigChange: (key: "vquality" | "size" | "videoSeconds" | "videoGenerateAudio" | "videoWatermark" | "videoCallMode", value: string) => void;
@@ -48,7 +47,9 @@ export function VideoSettingsPanel({ config, onConfigChange, theme, showTitle = 
         return <SeedanceVideoSettingsPanel config={config} onConfigChange={onConfigChange} theme={theme} showTitle={showTitle} className={className} />;
     }
 
-    const seconds = config.videoSeconds || "6";
+    const selectedModel = modelOptionName(config.videoModel || config.model);
+    const timing = relayBasesVideoTiming(selectedModel);
+    const seconds = String(normalizeRelayBasesVideoDuration(config.videoSeconds, selectedModel));
     const size = normalizeVideoSizeValue(config.size);
     const dimensions = readSizeDimensions(size);
     const resolution = normalizeVideoResolutionValue(config.vquality);
@@ -110,12 +111,12 @@ export function VideoSettingsPanel({ config, onConfigChange, theme, showTitle = 
                 </SettingGroup>
                 <SettingGroup title="秒数" color={theme.node.muted}>
                     <div className="grid grid-cols-3 gap-2.5">
-                        {secondOptions.map((value) => (
+                        {timing.options.map((value) => (
                             <OptionPill key={value} selected={seconds === String(value)} theme={theme} onClick={() => onConfigChange("videoSeconds", String(value))}>
                                 {value}s
                             </OptionPill>
                         ))}
-                        <NumberInput value={seconds} min={4} max={15} theme={theme} onChange={(value) => onConfigChange("videoSeconds", value)} />
+                        <NumberInput value={seconds} min={timing.min} max={timing.max} disabled={timing.fixed} theme={theme} onChange={(value) => onConfigChange("videoSeconds", value)} />
                     </div>
                 </SettingGroup>
             </div>
@@ -279,14 +280,15 @@ function DimensionInput({ prefix, value, disabled, theme, onChange }: { prefix: 
     );
 }
 
-function NumberInput({ value, min, max, theme, onChange }: { value: string; min: number; max: number; theme: CanvasTheme; onChange: (value: string) => void }) {
+function NumberInput({ value, min, max, disabled = false, theme, onChange }: { value: string; min: number; max: number; disabled?: boolean; theme: CanvasTheme; onChange: (value: string) => void }) {
     return (
         <input
             type="number"
             min={min}
             max={max}
+            disabled={disabled}
             className="h-9 rounded-full border bg-transparent px-3 text-center text-sm outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-            style={{ borderColor: theme.node.stroke, color: theme.node.text, WebkitTextFillColor: theme.node.text }}
+            style={{ borderColor: theme.node.stroke, color: theme.node.text, WebkitTextFillColor: theme.node.text, opacity: disabled ? 0.55 : 1 }}
             value={value}
             onChange={(event) => onChange(event.target.value)}
             onMouseDown={(event) => event.stopPropagation()}
