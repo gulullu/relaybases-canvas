@@ -5,13 +5,25 @@ import type { RemoteSyncStorage } from "@/services/app-sync";
 const CLOUD_SYNC_BASE_URL = "https://relaybases.com/api/canvas-sync";
 const CLOUD_SYNC_TIMEOUT_MS = 120000;
 const SESSION_REFRESH_SKEW_MS = 5 * 60 * 1000;
+const PUBLIC_MEDIA_MAX_BYTES = 100 * 1024 * 1024;
 
 type CloudSyncSession = {
     token: string;
     expiresAt: string;
 };
 
+type PublicMediaUploadResponse = {
+    success?: boolean;
+    data?: {
+        url?: string;
+        path?: string;
+        bytes?: number;
+        contentType?: string;
+    };
+};
+
 let cachedSession: CloudSyncSession | null = null;
+let cachedSessionApiKey = "";
 
 export function hasCloudSyncKey(mediaApiKey: string, textApiKey: string) {
     return Boolean(getCloudSyncApiKey(mediaApiKey, textApiKey));
@@ -45,6 +57,46 @@ export function createRelayBasesCloudSyncStorage(apiKey: string): RemoteSyncStor
     };
 }
 
+export async function uploadRelayBasesPublicMedia(apiKey: string, file: Blob, options: { fileName?: string; contentType?: string; signal?: AbortSignal } = {}) {
+    const normalizedApiKey = apiKey.trim();
+    if (!normalizedApiKey) throw new Error("请先填写媒体 API Key");
+    if (!file.size) throw new Error("上传素材为空，已取消上传");
+    if (file.size > PUBLIC_MEDIA_MAX_BYTES) throw new Error("单个参考素材不能超过 100MB");
+
+    const session = await getCloudSyncSession(normalizedApiKey);
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => controller.abort(), CLOUD_SYNC_TIMEOUT_MS);
+    const abort = () => controller.abort();
+    options.signal?.addEventListener("abort", abort, { once: true });
+
+    try {
+        const params = new URLSearchParams();
+        if (options.fileName) params.set("filename", options.fileName);
+        const response = await fetch(`${CLOUD_SYNC_BASE_URL}/public-upload${params.size ? `?${params}` : ""}`, {
+            method: "POST",
+            headers: {
+                Authorization: `Bearer ${session.token}`,
+                "Content-Type": options.contentType || file.type || "application/octet-stream",
+            },
+            body: file,
+            signal: controller.signal,
+        });
+        if (!response.ok) await throwCloudSyncError(response, "上传公开参考素材失败");
+        const payload = (await response.json()) as PublicMediaUploadResponse;
+        const url = payload.data?.url;
+        if (!payload.success || !url || !/^https?:\/\//i.test(url)) throw new Error("公开参考素材上传响应无效");
+        return url;
+    } catch (error) {
+        if (options.signal?.aborted) throw new DOMException("Aborted", "AbortError");
+        if (error instanceof Error && error.name === "AbortError") throw new Error("上传公开参考素材超时，请稍后重试");
+        if (error instanceof TypeError) throw new Error("无法连接 RelayBases 素材上传服务，请检查网络状态");
+        throw error;
+    } finally {
+        window.clearTimeout(timer);
+        options.signal?.removeEventListener("abort", abort);
+    }
+}
+
 async function cloudSyncFetch(apiKey: string, path: string, init: RequestInit) {
     const session = await getCloudSyncSession(apiKey);
     const headers = new Headers(init.headers);
@@ -67,7 +119,7 @@ async function cloudSyncFetch(apiKey: string, path: string, init: RequestInit) {
 }
 
 async function getCloudSyncSession(apiKey: string) {
-    if (cachedSession && Date.parse(cachedSession.expiresAt) - Date.now() > SESSION_REFRESH_SKEW_MS) return cachedSession;
+    if (cachedSession && cachedSessionApiKey === apiKey && Date.parse(cachedSession.expiresAt) - Date.now() > SESSION_REFRESH_SKEW_MS) return cachedSession;
     const controller = new AbortController();
     const timer = window.setTimeout(() => controller.abort(), CLOUD_SYNC_TIMEOUT_MS);
     try {
@@ -85,9 +137,11 @@ async function getCloudSyncSession(apiKey: string) {
         const session = payload.data;
         if (!payload.success || !session?.token || !session.expiresAt) throw new Error("云同步会话响应无效");
         cachedSession = session;
+        cachedSessionApiKey = apiKey;
         return session;
     } catch (error) {
         cachedSession = null;
+        cachedSessionApiKey = "";
         if (error instanceof Error && error.name === "AbortError") throw new Error("创建云同步会话超时，请稍后重试");
         throw error;
     } finally {

@@ -1,8 +1,9 @@
 import axios from "axios";
 
 import { getDataUrlByteSize } from "@/lib/image-utils";
+import { uploadRelayBasesPublicMedia } from "@/services/cloud-sync";
 import { getMediaBlob, uploadMediaFile, type UploadedFile } from "@/services/file-storage";
-import { imageToDataUrl } from "@/services/image-storage";
+import { getImageBlob, imageToDataUrl } from "@/services/image-storage";
 import { boolConfig, buildSeedancePromptText, isSeedanceVideoConfig, normalizeSeedanceDuration, normalizeSeedanceRatio, normalizeSeedanceResolution, seedanceVideoReferenceError, SEEDANCE_REFERENCE_LIMITS } from "@/lib/seedance-video";
 import { buildApiUrl, isRelayBasesVideoModel, modelOptionName, resolveModelRequestConfig, type AiConfig } from "@/stores/use-config-store";
 import type { ReferenceImage } from "@/types/image";
@@ -33,6 +34,7 @@ const RELAYBASES_IMAGE_DATA_URL_LIMIT_BYTES = 500 * 1024;
 const RELAYBASES_IMAGE_DATA_URL_TARGET_BYTES = 480 * 1024;
 const RELAYBASES_IMAGE_MAX_EDGE = 1536;
 const RELAYBASES_IMAGE_MIN_EDGE = 256;
+const relayBasesPublicMediaUploads = new Map<string, Promise<string>>();
 
 export type VideoGenerationResult = { blob?: Blob; url?: string; mimeType?: string };
 export type VideoGenerationTask = { id: string; provider: "openai" | "seedance"; model: string; mode?: AiConfig["videoCallMode"] };
@@ -86,7 +88,7 @@ export async function storeGeneratedVideo(result: VideoGenerationResult): Promis
 }
 
 async function createOpenAIVideoTask(config: AiConfig, model: string, prompt: string, references: ReferenceImage[], videoReferences: ReferenceVideo[], audioReferences: ReferenceAudio[], options?: RequestOptions): Promise<VideoGenerationTask> {
-    const body = await buildRelayBasesVideoPayload(config, model, prompt, references, videoReferences, audioReferences);
+    const body = await buildRelayBasesVideoPayload(config, model, prompt, references, videoReferences, audioReferences, options);
     try {
         const isRelayBasesVideo = isRelayBasesVideoModel(model);
         const mode = isRelayBasesVideo ? config.videoCallMode || "sync" : undefined;
@@ -100,11 +102,11 @@ async function createOpenAIVideoTask(config: AiConfig, model: string, prompt: st
     }
 }
 
-async function buildRelayBasesVideoPayload(config: AiConfig, model: string, prompt: string, references: ReferenceImage[], videoReferences: ReferenceVideo[], audioReferences: ReferenceAudio[]) {
+async function buildRelayBasesVideoPayload(config: AiConfig, model: string, prompt: string, references: ReferenceImage[], videoReferences: ReferenceVideo[], audioReferences: ReferenceAudio[], options?: RequestOptions) {
     const modelName = modelOptionName(model);
-    const images = await Promise.all(references.map((image) => resolveRelayBasesImageUrl(config, image)));
-    const videos = await Promise.all(videoReferences.map(resolveSeedanceVideoUrl));
-    const audios = await Promise.all(audioReferences.map(resolveSeedanceAudioUrl));
+    const images = await Promise.all(references.map((image) => resolveRelayBasesImageUrl(config, image, options)));
+    const videos = await Promise.all(videoReferences.map((video) => resolveRelayBasesVideoReferenceUrl(config, video, options)));
+    const audios = await Promise.all(audioReferences.map((audio) => resolveRelayBasesAudioReferenceUrl(config, audio, options)));
     const payload: Record<string, unknown> = {
         model: modelName,
         prompt,
@@ -136,12 +138,60 @@ async function buildRelayBasesVideoPayload(config: AiConfig, model: string, prom
     return payload;
 }
 
-async function resolveRelayBasesImageUrl(config: AiConfig, image: ReferenceImage) {
+async function resolveRelayBasesImageUrl(config: AiConfig, image: ReferenceImage, options?: RequestOptions) {
     const directUrl = image.url || image.dataUrl || "";
     if (isPublicMediaUrl(directUrl) || directUrl.startsWith("asset://")) return directUrl;
-    const dataUrl = directUrl.startsWith("data:") ? directUrl : await imageToDataUrl(image);
+    const blob = await readRelayBasesImageBlob(image, directUrl);
+    return uploadRelayBasesReferenceBlob(config, blob, relayBasesReferenceCacheKey("image", image.storageKey, directUrl, blob), image.name || "reference.png", image.type || blob.type || "image/png", options);
+}
+
+async function resolveRelayBasesVideoReferenceUrl(config: AiConfig, video: ReferenceVideo, options?: RequestOptions) {
+    const directUrl = video.url || "";
+    if (isPublicMediaUrl(directUrl) || directUrl.startsWith("asset://")) return directUrl;
+    const blob = await readRelayBasesStoredMediaBlob(video.storageKey, directUrl, "参考视频必须是公网 URL，或重新上传后再生成");
+    return uploadRelayBasesReferenceBlob(config, blob, relayBasesReferenceCacheKey("video", video.storageKey, directUrl, blob), video.name || "reference.mp4", video.type || blob.type || "video/mp4", options);
+}
+
+async function resolveRelayBasesAudioReferenceUrl(config: AiConfig, audio: ReferenceAudio, options?: RequestOptions) {
+    const directUrl = audio.url || "";
+    if (isPublicMediaUrl(directUrl) || directUrl.startsWith("asset://")) return directUrl;
+    const blob = await readRelayBasesStoredMediaBlob(audio.storageKey, directUrl, "参考音频必须是公网 URL，或重新上传后再生成");
+    return uploadRelayBasesReferenceBlob(config, blob, relayBasesReferenceCacheKey("audio", audio.storageKey, directUrl, blob), audio.name || "reference.mp3", audio.type || blob.type || "audio/mpeg", options);
+}
+
+async function readRelayBasesImageBlob(image: ReferenceImage, directUrl: string) {
+    if (image.storageKey) {
+        const stored = await getImageBlob(image.storageKey);
+        if (stored) return stored;
+    }
+    if (directUrl.startsWith("data:") || directUrl.startsWith("blob:")) return (await fetch(directUrl)).blob();
+    const dataUrl = await imageToDataUrl(image);
     if (!dataUrl) throw new Error("参考图读取失败，请换一张图片或重新上传");
-    return compressRelayBasesImageDataUrl(dataUrl);
+    return (await fetch(dataUrl)).blob();
+}
+
+async function readRelayBasesStoredMediaBlob(storageKey: string | undefined, directUrl: string, emptyMessage: string) {
+    if (storageKey) {
+        const stored = await getMediaBlob(storageKey);
+        if (stored) return stored;
+    }
+    if (directUrl.startsWith("data:") || directUrl.startsWith("blob:")) return (await fetch(directUrl)).blob();
+    throw new Error(emptyMessage);
+}
+
+function relayBasesReferenceCacheKey(kind: string, storageKey: string | undefined, directUrl: string, blob: Blob) {
+    return storageKey ? `${kind}:storage:${storageKey}:${blob.size}` : `${kind}:inline:${directUrl.slice(0, 128)}:${blob.size}:${blob.type}`;
+}
+
+function uploadRelayBasesReferenceBlob(config: AiConfig, blob: Blob, cacheKey: string, fileName: string, contentType: string, options?: RequestOptions) {
+    const cached = relayBasesPublicMediaUploads.get(cacheKey);
+    if (cached) return cached;
+    const upload = uploadRelayBasesPublicMedia(config.apiKey, blob, { fileName, contentType, signal: options?.signal }).catch((error) => {
+        relayBasesPublicMediaUploads.delete(cacheKey);
+        throw error;
+    });
+    relayBasesPublicMediaUploads.set(cacheKey, upload);
+    return upload;
 }
 
 async function compressRelayBasesImageDataUrl(dataUrl: string) {
