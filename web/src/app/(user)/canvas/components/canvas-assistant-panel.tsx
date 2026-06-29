@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import copyToClipboard from "copy-to-clipboard";
 import { Bot, Copy, Cpu, History, PanelRightClose, Plus, Settings2, Trash2, X } from "lucide-react";
-import { Button, Modal, Segmented, Tooltip } from "antd";
+import { Button, Modal, Segmented, Switch, Tooltip } from "antd";
 import { motion } from "motion/react";
 
 import { modelOptionName, normalizeModelOptionValue, selectableModelsByCapability, useConfigStore, useEffectiveConfig, type AiConfig } from "@/stores/use-config-store";
@@ -237,6 +237,7 @@ export function CanvasAssistantPanel({
     const openConfigDialog = useConfigStore((state) => state.openConfigDialog);
     const updateConfig = useConfigStore((state) => state.updateConfig);
     const confirmTools = useCanvasAgentStore((state) => state.confirmTools);
+    const setAgentState = useCanvasAgentStore((state) => state.setAgentState);
     const [width, setWidth] = useState(520);
     const [view, setView] = useState<OnlineAgentTab>("chat");
     const [prompt, setPrompt] = useState("");
@@ -741,6 +742,10 @@ export function CanvasAssistantPanel({
                         </div>
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
+                        <label className="flex items-center gap-1.5 text-xs" style={{ color: theme.node.muted }}>
+                            <Switch size="small" checked={confirmTools} onChange={(confirmTools) => setAgentState({ confirmTools })} />
+                            工具确认
+                        </label>
                         <Tooltip title="收起对话">
                             <Button type="text" shape="circle" className="!h-8 !w-8 !min-w-8" style={iconButtonStyle} icon={<PanelRightClose className="size-4" />} onClick={collapse} />
                         </Tooltip>
