@@ -120,16 +120,18 @@ export default function IndexPage() {
                 <div className="absolute inset-0 bg-[linear-gradient(rgba(22,24,20,.06)_1px,transparent_1px),linear-gradient(90deg,rgba(22,24,20,.06)_1px,transparent_1px)] bg-[size:32px_32px] dark:bg-[linear-gradient(rgba(255,255,255,.055)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.055)_1px,transparent_1px)]" />
                 <div className="relative mx-auto grid max-w-7xl gap-9 px-6 py-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-center lg:py-10">
                     <div className="max-w-3xl">
-                        <a
-                            href={RELAYBASES_HOME_URL}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white/70 px-3 py-1.5 text-sm font-medium text-stone-700 shadow-sm backdrop-blur transition hover:border-black/20 hover:text-stone-950 dark:border-white/10 dark:bg-white/10 dark:text-stone-200 dark:hover:border-white/20 dark:hover:text-white"
-                        >
-                            RelayBases Canvas
-                            <ExternalLink className="size-3.5" />
-                        </a>
-                        <h1 className="mt-8 max-w-4xl text-balance text-4xl font-semibold leading-[1.04] tracking-normal text-stone-950 sm:mt-9 sm:text-5xl lg:text-6xl dark:text-white">把生图、视频和 Agent 串进同一张画布</h1>
+                        <div className="mb-10 sm:mb-12">
+                            <a
+                                href={RELAYBASES_HOME_URL}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white/70 px-3 py-1.5 text-sm font-medium text-stone-700 shadow-sm backdrop-blur transition hover:border-black/20 hover:text-stone-950 dark:border-white/10 dark:bg-white/10 dark:text-stone-200 dark:hover:border-white/20 dark:hover:text-white"
+                            >
+                                RelayBases Canvas
+                                <ExternalLink className="size-3.5" />
+                            </a>
+                        </div>
+                        <h1 className="max-w-4xl text-balance text-4xl font-semibold leading-[1.04] tracking-normal text-stone-950 sm:text-5xl lg:text-6xl dark:text-white">把生图、视频和 Agent 串进同一张画布</h1>
                         <p className="mt-5 max-w-2xl text-base leading-7 text-stone-600 dark:text-stone-300">
                             面向 RelayBases 用户的创作入口。获取 API Key 后，在画布配置里分别填写媒体 Key 和文本 Key，即可使用图片生成、视频任务、Agent 编排和精选提示词库。
                         </p>
