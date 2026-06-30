@@ -92,10 +92,11 @@ export default function IndexPage() {
     };
 
     return (
-        <main className="min-h-full bg-[#f7f8f6] text-stone-950 dark:bg-[#090a09] dark:text-stone-50">
-            <section className="relative overflow-hidden border-b border-black/10 bg-[#f6f8f5] dark:border-white/10 dark:bg-[#090a09]">
+        <main className="min-h-full bg-[#f4f2ed] text-stone-950 dark:bg-[#181715] dark:text-stone-50">
+            <section className="relative overflow-hidden border-b border-black/10 bg-[#f4f2ed] dark:border-white/10 dark:bg-[#181715]">
+                <div className="pointer-events-none absolute inset-0 opacity-[0.45] [--home-grid:rgba(68,64,60,.12)] [background-image:linear-gradient(var(--home-grid)_1px,transparent_1px),linear-gradient(90deg,var(--home-grid)_1px,transparent_1px)] [background-size:48px_48px] dark:[--home-grid:rgba(245,245,244,.10)]" />
                 <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-emerald-500/30 to-transparent" />
-                <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-white/80 to-transparent dark:from-black/25" />
+                <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-[#f4f2ed]/90 to-transparent dark:from-[#181715]/90" />
                 <div className="relative mx-auto grid max-w-[1440px] gap-10 px-6 py-8 lg:grid-cols-[minmax(560px,0.9fr)_minmax(520px,0.82fr)] lg:items-center lg:py-10 xl:grid-cols-[minmax(640px,0.9fr)_minmax(600px,0.86fr)]">
                     <div className="max-w-3xl">
                         <div className="mb-7 sm:mb-8">
@@ -190,8 +191,9 @@ export default function IndexPage() {
                     </div>
                 </div>
             </section>
-            <section className="bg-[#f7f8f6] px-6 py-14 dark:bg-[#090a09]">
-                <div className="mx-auto max-w-7xl">
+            <section className="relative overflow-hidden bg-[#f4f2ed] px-6 py-14 dark:bg-[#181715]">
+                <div className="pointer-events-none absolute inset-0 opacity-[0.35] [--home-grid:rgba(68,64,60,.11)] [background-image:linear-gradient(var(--home-grid)_1px,transparent_1px),linear-gradient(90deg,var(--home-grid)_1px,transparent_1px)] [background-size:48px_48px] dark:[--home-grid:rgba(245,245,244,.09)]" />
+                <div className="relative mx-auto max-w-7xl">
                     <div className="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-end">
                         <div>
                             <p className="text-sm font-medium uppercase tracking-[0.2em] text-stone-500 dark:text-stone-400">Prompt Gallery</p>
