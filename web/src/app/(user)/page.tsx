@@ -124,7 +124,7 @@ export default function IndexPage() {
                                 <ExternalLink className="size-3.5" />
                             </a>
                         </div>
-                        <h1 className="max-w-4xl text-[2rem] font-semibold leading-[1.04] tracking-normal text-stone-950 min-[380px]:text-[2.1rem] sm:text-5xl lg:text-[3.05rem] xl:text-[3.35rem] dark:text-white">
+                        <h1 className="flex max-w-4xl flex-col gap-2 text-[2rem] font-semibold leading-[1.08] tracking-normal text-stone-950 min-[380px]:text-[2.1rem] sm:gap-3 sm:text-5xl lg:gap-4 lg:text-[3.05rem] xl:text-[3.35rem] dark:text-white">
                             <span className="block">一张画布</span>
                             <span className="block bg-[linear-gradient(90deg,#0f172a_0%,#059669_44%,#2563eb_100%)] bg-clip-text text-transparent dark:bg-[linear-gradient(90deg,#ffffff_0%,#6ee7b7_48%,#93c5fd_100%)]">承载完整 AI 创作流程</span>
                         </h1>
