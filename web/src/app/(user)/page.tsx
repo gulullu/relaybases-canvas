@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, BadgeCheck, ExternalLink, KeyRound, Layers3, Settings2, Sparkles, WalletCards } from "lucide-react";
+import { ArrowRight, BadgeCheck, Bot, ExternalLink, Film, ImageIcon, KeyRound, Layers3, MessageSquareText, Settings2, Sparkles, WalletCards } from "lucide-react";
 import { useEffect, useState } from "react";
 import { App, Image, Tag } from "antd";
 
@@ -63,6 +63,23 @@ const promoLinks = [
     },
 ] as const;
 
+const workflowHighlights = [
+    { label: "提示词", icon: MessageSquareText },
+    { label: "图片", icon: ImageIcon },
+    { label: "视频", icon: Film },
+    { label: "Agent", icon: Bot },
+] as const;
+
+const creationModes = ["自由拖拽", "组合扩展", "多版本创作"] as const;
+
+const heroPosterLayouts = [
+    { gridColumn: "1 / span 7", gridRow: "1 / span 4" },
+    { gridColumn: "8 / span 5", gridRow: "1 / span 3" },
+    { gridColumn: "8 / span 5", gridRow: "4 / span 3" },
+    { gridColumn: "1 / span 4", gridRow: "5 / span 2" },
+    { gridColumn: "5 / span 3", gridRow: "5 / span 2" },
+] as const;
+
 function createFallbackPrompt(id: string, title: string, coverUrl: string, tags: string[]): Prompt {
     return {
         id,
@@ -100,6 +117,7 @@ export default function IndexPage() {
     const heroPrompts = pickHeroPrompts(showcasePrompts);
     const heroPromptIdSet = new Set(heroPrompts.map((item) => item.id));
     const galleryPrompts = showcasePrompts.filter((item) => !heroPromptIdSet.has(item.id)).slice(0, 15);
+    const previewPrompts = [...heroPrompts, ...galleryPrompts];
 
     useEffect(() => {
         void fetchPrompts({ pageSize: 100 })
@@ -116,30 +134,35 @@ export default function IndexPage() {
 
     return (
         <main className="min-h-full bg-[#f7f8f6] text-stone-950 dark:bg-[#090a09] dark:text-stone-50">
-            <section className="relative overflow-hidden border-b border-black/10 bg-[linear-gradient(135deg,#fbfbf8_0%,#eef3ef_48%,#f8fafc_100%)] dark:border-white/10 dark:bg-[linear-gradient(135deg,#090a09_0%,#151713_54%,#0d1110_100%)]">
-                <div className="absolute inset-0 bg-[linear-gradient(rgba(22,24,20,.06)_1px,transparent_1px),linear-gradient(90deg,rgba(22,24,20,.06)_1px,transparent_1px)] bg-[size:32px_32px] dark:bg-[linear-gradient(rgba(255,255,255,.055)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.055)_1px,transparent_1px)]" />
-                <div className="relative mx-auto grid max-w-[1440px] gap-9 px-6 py-8 lg:grid-cols-[minmax(670px,0.95fr)_minmax(0,0.78fr)] lg:items-center lg:py-10 xl:grid-cols-[minmax(760px,0.98fr)_minmax(0,0.9fr)]">
-                    <div className="max-w-none">
-                        <div className="mb-10 sm:mb-12">
+            <section className="relative overflow-hidden border-b border-black/10 bg-[#f6f8f5] dark:border-white/10 dark:bg-[#090a09]">
+                <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-emerald-500/30 to-transparent" />
+                <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-white/80 to-transparent dark:from-black/25" />
+                <div className="relative mx-auto grid max-w-[1440px] gap-10 px-6 py-8 lg:grid-cols-[minmax(560px,0.9fr)_minmax(520px,0.82fr)] lg:items-center lg:py-10 xl:grid-cols-[minmax(640px,0.9fr)_minmax(600px,0.86fr)]">
+                    <div className="max-w-3xl">
+                        <div className="mb-7 sm:mb-8">
                             <a
                                 href={RELAYBASES_HOME_URL}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white/70 px-3 py-1.5 text-sm font-medium text-stone-700 shadow-sm backdrop-blur transition hover:border-black/20 hover:text-stone-950 dark:border-white/10 dark:bg-white/10 dark:text-stone-200 dark:hover:border-white/20 dark:hover:text-white"
+                                className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white/80 px-3 py-1.5 text-sm font-medium text-stone-700 shadow-sm backdrop-blur transition hover:border-black/20 hover:text-stone-950 dark:border-white/10 dark:bg-white/10 dark:text-stone-200 dark:hover:border-white/20 dark:hover:text-white"
                             >
                                 RelayBases Canvas
                                 <ExternalLink className="size-3.5" />
                             </a>
                         </div>
-                        <h1 className="max-w-none text-4xl font-semibold leading-[1.04] tracking-normal text-stone-950 sm:text-5xl lg:whitespace-nowrap lg:text-[2.35rem] xl:text-[2.55rem] 2xl:text-[2.95rem] dark:text-white">
-                            把
-                            <span className="bg-[linear-gradient(90deg,#0f172a_0%,#059669_46%,#2563eb_100%)] bg-clip-text text-transparent dark:bg-[linear-gradient(90deg,#ffffff_0%,#6ee7b7_48%,#93c5fd_100%)]">生图、视频和 Agent</span>
-                            {" "}串进同一张画布
+                        <h1 className="max-w-4xl text-4xl font-semibold leading-[1.04] tracking-normal text-stone-950 sm:text-5xl lg:text-[3.05rem] xl:text-[3.45rem] dark:text-white">
+                            一张画布，承载
+                            <span className="block bg-[linear-gradient(90deg,#0f172a_0%,#059669_44%,#2563eb_100%)] bg-clip-text text-transparent dark:bg-[linear-gradient(90deg,#ffffff_0%,#6ee7b7_48%,#93c5fd_100%)]">完整 AI 创作流程</span>
                         </h1>
-                        <p className="mt-5 max-w-2xl text-base leading-7 text-stone-600 dark:text-stone-300">
-                            面向 RelayBases 用户的创作入口。获取 API Key 后，在画布配置里分别填写媒体 Key 和文本 Key，即可使用图片生成、视频任务、Agent 编排和精选提示词库。
-                        </p>
-                        <div className="mt-7 flex flex-wrap gap-3">
+                        <p className="mt-5 max-w-2xl text-base leading-7 text-stone-600 sm:text-lg sm:leading-8 dark:text-stone-300">将图片、视频、提示词和 Agent 工作流放在同一空间中，自由拖拽、组合、扩展，适合灵感探索、项目规划和多版本创作。</p>
+                        <div className="mt-5 flex flex-wrap gap-2">
+                            {creationModes.map((mode) => (
+                                <span key={mode} className="rounded-full border border-black/10 bg-white/70 px-3 py-1 text-xs font-medium text-stone-600 shadow-sm backdrop-blur dark:border-white/10 dark:bg-white/10 dark:text-stone-300">
+                                    {mode}
+                                </span>
+                            ))}
+                        </div>
+                        <div className="mt-8 flex flex-wrap gap-3">
                             <a
                                 href={RELAYBASES_KEYS_URL}
                                 target="_blank"
@@ -167,7 +190,7 @@ export default function IndexPage() {
                                 配置 Key
                             </button>
                         </div>
-                        <div className="mt-7 grid max-w-2xl gap-3 sm:grid-cols-3">
+                        <div className="mt-8 grid max-w-2xl gap-3 sm:grid-cols-3">
                             {promoLinks.map((link) => {
                                 const Icon = link.icon;
                                 return (
@@ -193,32 +216,49 @@ export default function IndexPage() {
                     </div>
 
                     <div className="relative">
-                        <div className="ml-auto max-w-[700px] rounded-2xl border border-white/50 bg-white/55 p-3 shadow-2xl shadow-stone-900/10 backdrop-blur dark:border-white/10 dark:bg-white/[0.04] dark:shadow-black/30">
-                            <div className="mb-3 flex items-center justify-between px-1">
-                                <span className="text-xs font-medium uppercase tracking-[0.22em] text-stone-500 dark:text-stone-400">Poster Wall</span>
+                        <div className="ml-auto max-w-[680px] rounded-[28px] border border-white/60 bg-white/70 p-3 shadow-2xl shadow-stone-900/10 backdrop-blur dark:border-white/10 dark:bg-white/[0.05] dark:shadow-black/30">
+                            <div className="mb-3 flex items-center justify-between px-2">
+                                <div>
+                                    <span className="text-xs font-medium uppercase tracking-[0.22em] text-stone-500 dark:text-stone-400">Canvas Workflow</span>
+                                    <div className="mt-1 text-sm font-semibold text-stone-900 dark:text-white">从想法到成片</div>
+                                </div>
                                 <a href="/prompts" className="inline-flex items-center gap-1 text-xs font-medium text-stone-600 transition hover:text-stone-950 dark:text-stone-300 dark:hover:text-white">
                                     提示词库
                                     <ArrowRight className="size-3.5" />
                                 </a>
                             </div>
-                            <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
-                                {heroPrompts.map((item, index) => (
+                            <div className="grid h-[380px] grid-cols-12 grid-rows-6 gap-2 sm:h-[460px]">
+                                {heroPrompts.slice(0, heroPosterLayouts.length).map((item, index) => (
                                     <button
                                         key={item.id}
                                         type="button"
                                         onClick={() => {
-                                            const galleryIndex = galleryPrompts.findIndex((prompt) => prompt.id === item.id);
-                                            setPreviewIndex(Math.max(galleryIndex, 0));
+                                            const promptIndex = previewPrompts.findIndex((prompt) => prompt.id === item.id);
+                                            setPreviewIndex(Math.max(promptIndex, 0));
                                             setPreviewOpen(true);
                                         }}
-                                        className="group relative aspect-[3/4] overflow-hidden rounded-lg border border-black/10 bg-stone-950 shadow-md shadow-stone-900/10 transition hover:-translate-y-0.5 dark:border-white/10 dark:shadow-black/30"
+                                        style={heroPosterLayouts[index]}
+                                        className="group relative overflow-hidden rounded-2xl border border-black/10 bg-stone-950 shadow-md shadow-stone-900/10 transition hover:-translate-y-0.5 dark:border-white/10 dark:shadow-black/30"
                                     >
                                         <img src={item.coverUrl} alt={item.title} className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.04]" onError={() => hidePrompt(item.id)} />
-                                        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 via-black/30 to-transparent p-4 text-left text-white">
-                                            <p className="line-clamp-1 text-xs font-medium">{item.title}</p>
+                                        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 via-black/25 to-transparent p-4 text-left text-white">
+                                            <p className="line-clamp-1 text-xs font-semibold">{item.title}</p>
                                         </div>
                                     </button>
                                 ))}
+                            </div>
+                            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                                {workflowHighlights.map((item) => {
+                                    const Icon = item.icon;
+                                    return (
+                                        <div key={item.label} className="flex items-center gap-2 rounded-2xl border border-black/10 bg-white/75 p-2.5 text-sm font-medium text-stone-700 shadow-sm dark:border-white/10 dark:bg-white/10 dark:text-stone-200">
+                                            <span className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-stone-950 text-white dark:bg-white dark:text-stone-950">
+                                                <Icon className="size-4" />
+                                            </span>
+                                            {item.label}
+                                        </div>
+                                    );
+                                })}
                             </div>
                         </div>
                     </div>
@@ -271,7 +311,8 @@ export default function IndexPage() {
                                 key={item.id}
                                 type="button"
                                 onClick={() => {
-                                    setPreviewIndex(index);
+                                    const promptIndex = previewPrompts.findIndex((prompt) => prompt.id === item.id);
+                                    setPreviewIndex(Math.max(promptIndex, index));
                                     setPreviewOpen(true);
                                 }}
                                 className="group relative aspect-square cursor-pointer overflow-hidden rounded-2xl border border-stone-200 bg-stone-100 text-left shadow-sm transition hover:-translate-y-0.5 dark:border-white/10 dark:bg-white/5"
@@ -302,7 +343,7 @@ export default function IndexPage() {
                 }}
             >
                 <div className="hidden">
-                    {galleryPrompts.map((item) => (
+                    {previewPrompts.map((item) => (
                         <Image key={item.id} src={item.coverUrl} alt={item.title} onError={() => hidePrompt(item.id)} />
                     ))}
                 </div>
