@@ -136,7 +136,7 @@ export const defaultConfig: AiConfig = {
     quality: "auto",
     size: "1:1",
     count: "1",
-    canvasImageCount: "3",
+    canvasImageCount: "1",
 };
 
 export const defaultWebdavSyncConfig: WebdavSyncConfig = {
@@ -260,6 +260,25 @@ export const useConfigStore = create<ConfigStore>()(
         }),
         {
             name: CONFIG_STORE_KEY,
+            version: 1,
+            migrate: (persisted, version) => {
+                const persistedState = (persisted || {}) as {
+                    config?: Partial<AiConfig>;
+                    cloudSync?: Partial<CloudSyncConfig>;
+                    webdav?: Partial<WebdavSyncConfig>;
+                };
+                const migratedConfig = { ...defaultConfig, ...(persistedState.config || {}) };
+                if (version < 1) {
+                    if (String(migratedConfig.canvasImageCount || "") === "3") {
+                        migratedConfig.canvasImageCount = "1";
+                    }
+                }
+                return {
+                    config: migratedConfig,
+                    cloudSync: { ...defaultCloudSyncConfig, ...(persistedState.cloudSync || {}) },
+                    webdav: { ...defaultWebdavSyncConfig, ...(persistedState.webdav || {}) },
+                };
+            },
             partialize: (state) => ({ config: state.config, cloudSync: state.cloudSync, webdav: state.webdav }),
             merge: (persisted, current) => {
                 const persistedState = (persisted || {}) as Partial<ConfigStore>;

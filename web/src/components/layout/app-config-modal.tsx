@@ -318,7 +318,9 @@ export function AppConfigModal() {
                                                 <span className="rounded-full border border-stone-200 bg-stone-50 px-2.5 py-1 text-stone-700 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-200">其它文本分组可用</span>
                                             </div>
                                             <div className="text-xs text-stone-500">
-                                                {config.textModels.length ? `已获取 ${config.textModels.length} 个文本模型，默认 ${modelOptionName(config.textModel)}` : "填写文本 API Key 后获取模型；若返回列表包含 gpt-5.5，会优先使用 gpt-5.5，否则使用返回列表第一个。"}
+                                                {config.textModels.length
+                                                    ? `已获取 ${config.textModels.length} 个文本模型，默认 ${modelOptionName(config.textModel)}`
+                                                    : "填写文本 API Key 后获取模型；若返回列表包含 gpt-5.5，会优先使用 gpt-5.5，否则使用返回列表第一个。"}
                                             </div>
                                         </div>
                                         <div className="rounded-lg border border-stone-200 p-3 text-sm dark:border-stone-800">
@@ -515,7 +517,7 @@ export function AppConfigModal() {
 }
 
 function normalizeImageCount(value: string) {
-    return String(Math.max(1, Math.min(3, Math.floor(Math.abs(Number(value)) || 3))));
+    return String(Math.max(1, Math.min(3, Math.floor(Math.abs(Number(value)) || 1))));
 }
 
 function formatWebdavTime(value: string, language: "zh" | "en" = "zh") {
