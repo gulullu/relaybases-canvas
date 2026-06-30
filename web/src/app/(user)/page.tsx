@@ -2,7 +2,7 @@
 
 import { ArrowRight, ExternalLink, Settings2 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { App, Image } from "antd";
+import { App, Image, Tag } from "antd";
 
 import { navigationTools } from "@/constant/navigation-tools";
 import { RELAYBASES_CONSOLE_URL, RELAYBASES_HOME_URL, RELAYBASES_KEYS_URL, RELAYBASES_WALLET_URL } from "@/constant/relaybases-links";
@@ -221,6 +221,48 @@ export default function IndexPage() {
                                 ))}
                             </div>
                         </div>
+                    </div>
+                </div>
+            </section>
+            <section className="bg-[#f7f8f6] px-6 py-14 dark:bg-[#090a09]">
+                <div className="mx-auto max-w-7xl">
+                    <div className="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-end">
+                        <div>
+                            <p className="text-sm font-medium uppercase tracking-[0.2em] text-stone-500 dark:text-stone-400">Prompt Gallery</p>
+                            <h2 className="mt-3 text-3xl font-semibold tracking-normal text-stone-950 dark:text-white">精选提示词示例</h2>
+                            <p className="mt-3 max-w-2xl text-sm leading-6 text-stone-600 dark:text-stone-300">从精选提示词中展示不同风格的成片效果，适合快速感受画布里的创作方向。</p>
+                        </div>
+                        <a href="/prompts" className="inline-flex items-center gap-2 text-sm font-medium text-stone-700 transition hover:text-stone-950 dark:text-stone-300 dark:hover:text-white">
+                            查看提示词库
+                            <ArrowRight className="size-4" />
+                        </a>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+                        {galleryPrompts.map((item, index) => (
+                            <button
+                                key={item.id}
+                                type="button"
+                                onClick={() => {
+                                    const promptIndex = previewPrompts.findIndex((prompt) => prompt.id === item.id);
+                                    setPreviewIndex(Math.max(promptIndex, index));
+                                    setPreviewOpen(true);
+                                }}
+                                className="group relative aspect-square cursor-pointer overflow-hidden rounded-2xl border border-stone-200 bg-stone-100 text-left shadow-sm transition hover:-translate-y-0.5 dark:border-white/10 dark:bg-white/5"
+                            >
+                                <img src={item.coverUrl} alt={item.title} className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]" onError={() => hidePrompt(item.id)} />
+                                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 via-black/35 to-transparent p-4 text-white">
+                                    <div className="mb-2 flex flex-wrap gap-1.5">
+                                        {item.tags.slice(0, 2).map((tag, tagIndex) => (
+                                            <Tag key={`${tag}-${tagIndex}`} className="m-0 border-white/10 bg-white/15 text-[11px] text-white backdrop-blur">
+                                                {tag}
+                                            </Tag>
+                                        ))}
+                                    </div>
+                                    <h3 className="text-sm font-medium">{item.title}</h3>
+                                    <p className="mt-1 line-clamp-2 text-xs leading-5 text-white/75">{item.prompt}</p>
+                                </div>
+                            </button>
+                        ))}
                     </div>
                 </div>
             </section>

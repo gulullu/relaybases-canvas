@@ -35,6 +35,7 @@ const zhToEn = {
     控制台: "Console",
     钱包充值: "Wallet",
     高质量示例: "High Quality Examples",
+    "从精选提示词中展示不同风格的成片效果，适合快速感受画布里的创作方向。": "A curated set of finished visual styles from the prompt collection, useful for quickly sensing what the canvas can create.",
     "从精选提示词库抽取示例图，发布后随项目一起部署，不依赖远端原库。": "Examples come from the curated prompt library and deploy with the project, without depending on the original remote library.",
     查看更多提示词: "More Prompts",
     精选提示词示例: "Curated Prompt Examples",
