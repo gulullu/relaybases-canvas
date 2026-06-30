@@ -150,6 +150,28 @@ export default function IndexPage() {
                                 配置 Key
                             </button>
                         </div>
+                        <div className="mt-5 max-w-2xl rounded-2xl border border-stone-300/70 bg-white/55 p-4 shadow-sm backdrop-blur dark:border-white/10 dark:bg-white/[0.07]">
+                            <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                                <div className="text-sm font-semibold text-stone-950 dark:text-white">Key 准备</div>
+                                <div className="text-xs text-stone-500 dark:text-stone-400">在配置面板分别填写媒体 Key 和文本 Key</div>
+                            </div>
+                            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                                <div className="rounded-xl border border-emerald-500/20 bg-emerald-50/55 px-3 py-2.5 dark:border-emerald-300/15 dark:bg-emerald-300/10">
+                                    <div className="flex items-center justify-between gap-2">
+                                        <span className="text-xs font-medium text-emerald-700 dark:text-emerald-200">媒体 Key</span>
+                                        <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:bg-emerald-300/15 dark:text-emerald-100">gpt-image-2 分组</span>
+                                    </div>
+                                    <p className="mt-1 text-xs leading-5 text-stone-600 dark:text-stone-300">图片和视频生成</p>
+                                </div>
+                                <div className="rounded-xl border border-sky-500/20 bg-sky-50/55 px-3 py-2.5 dark:border-sky-300/15 dark:bg-sky-300/10">
+                                    <div className="flex items-center justify-between gap-2">
+                                        <span className="text-xs font-medium text-sky-700 dark:text-sky-200">文本 Key</span>
+                                        <span className="rounded-full bg-sky-500/10 px-2 py-0.5 text-[11px] font-medium text-sky-700 dark:bg-sky-300/15 dark:text-sky-100">codex-pro 分组</span>
+                                    </div>
+                                    <p className="mt-1 text-xs leading-5 text-stone-600 dark:text-stone-300">Agent 和文本模型</p>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     <div className="relative">
