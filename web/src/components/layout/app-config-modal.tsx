@@ -382,7 +382,7 @@ export function AppConfigModal() {
                                         <Input
                                             type="number"
                                             min={1}
-                                            max={5}
+                                            max={3}
                                             value={config.canvasImageCount}
                                             onChange={(event) => updateConfig("canvasImageCount", event.target.value)}
                                             onBlur={(event) => updateConfig("canvasImageCount", normalizeImageCount(event.target.value))}
@@ -515,7 +515,7 @@ export function AppConfigModal() {
 }
 
 function normalizeImageCount(value: string) {
-    return String(Math.max(1, Math.min(5, Math.floor(Math.abs(Number(value)) || 3))));
+    return String(Math.max(1, Math.min(3, Math.floor(Math.abs(Number(value)) || 3))));
 }
 
 function formatWebdavTime(value: string, language: "zh" | "en" = "zh") {
