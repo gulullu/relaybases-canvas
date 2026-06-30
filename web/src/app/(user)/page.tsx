@@ -4,6 +4,7 @@ import { ArrowRight, ExternalLink, Settings2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { App, Image, Tag } from "antd";
 
+import { RelayBasesCanvasIcon } from "@/components/brand/relaybases-canvas-icon";
 import { navigationTools } from "@/constant/navigation-tools";
 import { RELAYBASES_HOME_URL, RELAYBASES_KEYS_URL } from "@/constant/relaybases-links";
 import { fetchPrompts, type Prompt } from "@/services/api/prompts";
@@ -104,10 +105,11 @@ export default function IndexPage() {
                                 href={RELAYBASES_HOME_URL}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white/80 px-3 py-1.5 text-sm font-medium text-stone-700 shadow-sm backdrop-blur transition hover:border-black/20 hover:text-stone-950 dark:border-white/10 dark:bg-white/10 dark:text-stone-200 dark:hover:border-white/20 dark:hover:text-white"
+                                className="group inline-flex items-center gap-2 rounded-full border border-black/10 bg-white/80 py-1.5 pl-1.5 pr-3 text-sm font-medium text-stone-700 shadow-[0_10px_30px_rgba(20,25,40,0.08)] backdrop-blur transition hover:-translate-y-0.5 hover:border-black/20 hover:bg-white hover:text-stone-950 dark:border-white/10 dark:bg-white/[0.08] dark:text-stone-200 dark:shadow-black/20 dark:hover:border-white/20 dark:hover:bg-white/[0.12] dark:hover:text-white"
                             >
-                                RelayBases Canvas
-                                <ExternalLink className="size-3.5" />
+                                <RelayBasesCanvasIcon className="size-7 transition duration-300 group-hover:scale-105" />
+                                <span className="font-semibold tracking-tight">RelayBases Canvas</span>
+                                <ExternalLink className="size-3.5 opacity-60 transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:opacity-90" />
                             </a>
                         </div>
                         <h1 className="flex max-w-4xl flex-col gap-2 text-[2rem] font-semibold leading-[1.08] tracking-normal text-stone-950 min-[380px]:text-[2.1rem] sm:gap-3 sm:text-5xl lg:gap-4 lg:text-[3.05rem] xl:text-[3.35rem] dark:text-white">

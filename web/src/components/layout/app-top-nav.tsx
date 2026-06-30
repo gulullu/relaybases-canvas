@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 
 import { navigationTools, type NavigationToolSlug } from "@/constant/navigation-tools";
 import { RELAYBASES_HOME_URL, relayBasesLinks } from "@/constant/relaybases-links";
+import { RelayBasesCanvasIcon } from "@/components/brand/relaybases-canvas-icon";
 import { AppConfigModal } from "@/components/layout/app-config-modal";
 import { MobileNavDrawer } from "@/components/layout/mobile-nav-drawer";
 import { UserStatusActions } from "@/components/layout/user-status-actions";
@@ -41,7 +42,8 @@ export function AppTopNav() {
                                 <span className="text-base font-semibold">RelayBases</span>
                             </a>
                             <span className="mx-3 hidden h-5 w-px shrink-0 bg-stone-200 sm:block dark:bg-stone-800" />
-                            <Link href="/" className="flex h-full shrink-0 items-center text-sm font-semibold leading-none tracking-tight text-stone-950 transition hover:text-stone-600 dark:text-stone-100 dark:hover:text-stone-300">
+                            <Link href="/" className="flex h-full shrink-0 items-center gap-2 text-sm font-semibold leading-none tracking-tight text-stone-950 transition hover:text-stone-600 dark:text-stone-100 dark:hover:text-stone-300">
+                                <RelayBasesCanvasIcon className="size-6" />
                                 <span className="text-base font-medium">无限画布</span>
                             </Link>
 
