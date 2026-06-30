@@ -1,8 +1,8 @@
 "use client";
 
-import { ArrowRight, BadgeCheck, Bot, ExternalLink, Film, ImageIcon, KeyRound, Layers3, MessageSquareText, Settings2, Sparkles, WalletCards } from "lucide-react";
+import { ArrowRight, ExternalLink, Settings2 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { App, Image, Tag } from "antd";
+import { App, Image } from "antd";
 
 import { navigationTools } from "@/constant/navigation-tools";
 import { RELAYBASES_CONSOLE_URL, RELAYBASES_HOME_URL, RELAYBASES_KEYS_URL, RELAYBASES_WALLET_URL } from "@/constant/relaybases-links";
@@ -27,48 +27,22 @@ const fallbackPrompts: Prompt[] = [
     createFallbackPrompt("rb-prompt-032", "竹林晨雾小径", "/prompt-covers/relaybases/rb-prompt-032.webp", ["风景", "东方"]),
 ];
 
-const keySteps = [
-    {
-        title: "在主站获取 Key",
-        copy: "前往 RelayBases API 密钥页面创建媒体 Key 和文本 Key，余额、模型与账单都在主站管理。",
-        icon: KeyRound,
-    },
-    {
-        title: "媒体 Key 用于图片和视频",
-        copy: "画布内图片与视频统一走 RelayBases 媒体线路；异步图片和视频任务会按 4 倍扣费。",
-        icon: Sparkles,
-    },
-    {
-        title: "文本 Key 用于 Agent",
-        copy: "文本 Key 负责 Agent、提示词反推和文本生成。填入后可自动获取可用文本模型。",
-        icon: Layers3,
-    },
-] as const;
-
 const promoLinks = [
     {
         label: "API 密钥",
         href: RELAYBASES_KEYS_URL,
-        icon: KeyRound,
     },
     {
         label: "控制台",
         href: RELAYBASES_CONSOLE_URL,
-        icon: BadgeCheck,
     },
     {
         label: "钱包充值",
         href: RELAYBASES_WALLET_URL,
-        icon: WalletCards,
     },
 ] as const;
 
-const workflowHighlights = [
-    { label: "提示词", icon: MessageSquareText },
-    { label: "图片", icon: ImageIcon },
-    { label: "视频", icon: Film },
-    { label: "Agent", icon: Bot },
-] as const;
+const workflowHighlights = ["提示词", "图片", "视频", "Agent"] as const;
 
 const creationModes = ["自由拖拽", "组合扩展", "多版本创作"] as const;
 
@@ -150,9 +124,9 @@ export default function IndexPage() {
                                 <ExternalLink className="size-3.5" />
                             </a>
                         </div>
-                        <h1 className="max-w-4xl text-4xl font-semibold leading-[1.04] tracking-normal text-stone-950 sm:text-5xl lg:text-[3.05rem] xl:text-[3.45rem] dark:text-white">
-                            一张画布，承载
-                            <span className="block bg-[linear-gradient(90deg,#0f172a_0%,#059669_44%,#2563eb_100%)] bg-clip-text text-transparent dark:bg-[linear-gradient(90deg,#ffffff_0%,#6ee7b7_48%,#93c5fd_100%)]">完整 AI 创作流程</span>
+                        <h1 className="max-w-4xl text-[2rem] font-semibold leading-[1.04] tracking-normal text-stone-950 min-[380px]:text-[2.1rem] sm:text-5xl lg:text-[3.05rem] xl:text-[3.35rem] dark:text-white">
+                            <span className="block">一张画布</span>
+                            <span className="block bg-[linear-gradient(90deg,#0f172a_0%,#059669_44%,#2563eb_100%)] bg-clip-text text-transparent dark:bg-[linear-gradient(90deg,#ffffff_0%,#6ee7b7_48%,#93c5fd_100%)]">承载完整 AI 创作流程</span>
                         </h1>
                         <p className="mt-5 max-w-2xl text-base leading-7 text-stone-600 sm:text-lg sm:leading-8 dark:text-stone-300">将图片、视频、提示词和 Agent 工作流放在同一空间中，自由拖拽、组合、扩展，适合灵感探索、项目规划和多版本创作。</p>
                         <div className="mt-5 flex flex-wrap gap-2">
@@ -192,18 +166,14 @@ export default function IndexPage() {
                         </div>
                         <div className="mt-8 grid max-w-2xl gap-3 sm:grid-cols-3">
                             {promoLinks.map((link) => {
-                                const Icon = link.icon;
                                 return (
                                     <a
                                         key={link.href}
                                         href={link.href}
                                         target="_blank"
                                         rel="noopener noreferrer"
-                                        className="group flex items-center gap-3 rounded-xl border border-black/10 bg-white/65 p-3 shadow-sm backdrop-blur transition hover:-translate-y-0.5 hover:border-black/20 hover:bg-white dark:border-white/10 dark:bg-white/10 dark:hover:border-white/20 dark:hover:bg-white/15"
+                                        className="group flex items-center gap-3 rounded-xl border border-black/10 bg-white/65 px-4 py-3 shadow-sm backdrop-blur transition hover:-translate-y-0.5 hover:border-black/20 hover:bg-white dark:border-white/10 dark:bg-white/10 dark:hover:border-white/20 dark:hover:bg-white/15"
                                     >
-                                        <span className="flex size-9 items-center justify-center rounded-lg bg-stone-950 text-white dark:bg-white dark:text-stone-950">
-                                            <Icon className="size-4" />
-                                        </span>
                                         <span className="min-w-0">
                                             <span className="block text-sm font-medium text-stone-950 dark:text-white">{link.label}</span>
                                             <span className="mt-0.5 block text-xs text-stone-500 dark:text-stone-400">主站管理</span>
@@ -222,10 +192,6 @@ export default function IndexPage() {
                                     <span className="text-xs font-medium uppercase tracking-[0.22em] text-stone-500 dark:text-stone-400">Canvas Workflow</span>
                                     <div className="mt-1 text-sm font-semibold text-stone-900 dark:text-white">从想法到成片</div>
                                 </div>
-                                <a href="/prompts" className="inline-flex items-center gap-1 text-xs font-medium text-stone-600 transition hover:text-stone-950 dark:text-stone-300 dark:hover:text-white">
-                                    提示词库
-                                    <ArrowRight className="size-3.5" />
-                                </a>
                             </div>
                             <div className="grid h-[380px] grid-cols-12 grid-rows-6 gap-2 sm:h-[460px]">
                                 {heroPrompts.slice(0, heroPosterLayouts.length).map((item, index) => (
@@ -247,90 +213,14 @@ export default function IndexPage() {
                                     </button>
                                 ))}
                             </div>
-                            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                                {workflowHighlights.map((item) => {
-                                    const Icon = item.icon;
-                                    return (
-                                        <div key={item.label} className="flex items-center gap-2 rounded-2xl border border-black/10 bg-white/75 p-2.5 text-sm font-medium text-stone-700 shadow-sm dark:border-white/10 dark:bg-white/10 dark:text-stone-200">
-                                            <span className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-stone-950 text-white dark:bg-white dark:text-stone-950">
-                                                <Icon className="size-4" />
-                                            </span>
-                                            {item.label}
-                                        </div>
-                                    );
-                                })}
+                            <div className="mt-3 flex flex-wrap gap-2">
+                                {workflowHighlights.map((item) => (
+                                    <span key={item} className="rounded-full border border-black/10 bg-white/65 px-3 py-1.5 text-xs font-medium text-stone-600 shadow-sm dark:border-white/10 dark:bg-white/10 dark:text-stone-300">
+                                        {item}
+                                    </span>
+                                ))}
                             </div>
                         </div>
-                    </div>
-                </div>
-            </section>
-
-            <section className="border-b border-stone-200 bg-white px-6 py-14 dark:border-white/10 dark:bg-[#0d0e0d]">
-                <div className="mx-auto max-w-7xl">
-                    <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
-                        <div>
-                            <p className="text-sm font-medium uppercase tracking-[0.2em] text-emerald-700 dark:text-emerald-300">Key Setup</p>
-                            <h2 className="mt-3 text-3xl font-semibold tracking-normal text-stone-950 dark:text-white">先在 RelayBases 主站获取 Key</h2>
-                        </div>
-                    </div>
-                    <div className="mt-8 grid gap-4 lg:grid-cols-3">
-                        {keySteps.map((step, index) => {
-                            const Icon = step.icon;
-                            return (
-                                <article key={step.title} className="rounded-2xl border border-stone-200 bg-[#f8f8f4] p-6 dark:border-white/10 dark:bg-white/5">
-                                    <div className="flex items-center justify-between gap-4">
-                                        <span className="flex size-11 items-center justify-center rounded-xl bg-stone-950 text-white dark:bg-white dark:text-stone-950">
-                                            <Icon className="size-5" />
-                                        </span>
-                                        <span className="text-sm font-medium text-stone-400">0{index + 1}</span>
-                                    </div>
-                                    <h3 className="mt-5 text-lg font-semibold text-stone-950 dark:text-white">{step.title}</h3>
-                                    <p className="mt-3 text-sm leading-6 text-stone-600 dark:text-stone-300">{step.copy}</p>
-                                </article>
-                            );
-                        })}
-                    </div>
-                </div>
-            </section>
-
-            <section className="bg-[#f7f8f6] px-6 py-14 dark:bg-[#090a09]">
-                <div className="mx-auto max-w-7xl">
-                    <div className="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-end">
-                        <div>
-                            <p className="text-sm font-medium uppercase tracking-[0.2em] text-stone-500 dark:text-stone-400">Prompt Gallery</p>
-                            <h2 className="mt-3 text-3xl font-semibold tracking-normal text-stone-950 dark:text-white">精选提示词示例</h2>
-                        </div>
-                        <a href="/prompts" className="inline-flex items-center gap-2 text-sm font-medium text-stone-700 transition hover:text-stone-950 dark:text-stone-300 dark:hover:text-white">
-                            查看提示词库
-                            <ArrowRight className="size-4" />
-                        </a>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-                        {galleryPrompts.map((item, index) => (
-                            <button
-                                key={item.id}
-                                type="button"
-                                onClick={() => {
-                                    const promptIndex = previewPrompts.findIndex((prompt) => prompt.id === item.id);
-                                    setPreviewIndex(Math.max(promptIndex, index));
-                                    setPreviewOpen(true);
-                                }}
-                                className="group relative aspect-square cursor-pointer overflow-hidden rounded-2xl border border-stone-200 bg-stone-100 text-left shadow-sm transition hover:-translate-y-0.5 dark:border-white/10 dark:bg-white/5"
-                            >
-                                <img src={item.coverUrl} alt={item.title} className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]" onError={() => hidePrompt(item.id)} />
-                                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 via-black/35 to-transparent p-4 text-white">
-                                    <div className="mb-2 flex flex-wrap gap-1.5">
-                                        {item.tags.slice(0, 2).map((tag, tagIndex) => (
-                                            <Tag key={`${tag}-${tagIndex}`} className="m-0 border-white/10 bg-white/15 text-[11px] text-white backdrop-blur">
-                                                {tag}
-                                            </Tag>
-                                        ))}
-                                    </div>
-                                    <h3 className="text-sm font-medium">{item.title}</h3>
-                                    <p className="mt-1 line-clamp-2 text-xs leading-5 text-white/75">{item.prompt}</p>
-                                </div>
-                            </button>
-                        ))}
                     </div>
                 </div>
             </section>

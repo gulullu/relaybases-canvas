@@ -5,6 +5,8 @@ import { useLanguageStore, type LanguageName } from "@/stores/use-language-store
 const zhToEn = {
     无限画布: "Infinite Canvas",
     "RelayBases Canvas": "RelayBases Canvas",
+    一张画布: "One Canvas",
+    "承载完整 AI 创作流程": "Complete AI Workflow",
     "一张画布，承载": "One Canvas For",
     "完整 AI 创作流程": "Complete AI Workflow",
     "将图片、视频、提示词和 Agent 工作流放在同一空间中，自由拖拽、组合、扩展，适合灵感探索、项目规划和多版本创作。":
