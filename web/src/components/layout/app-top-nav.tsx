@@ -42,9 +42,9 @@ export function AppTopNav() {
                                 <span className="text-base font-semibold">RelayBases</span>
                             </a>
                             <span className="mx-3 hidden h-5 w-px shrink-0 bg-stone-200 sm:block dark:bg-stone-800" />
-                            <Link href="/" className="flex h-full shrink-0 items-center gap-2 text-sm font-semibold leading-none tracking-tight text-stone-950 transition hover:text-stone-600 dark:text-stone-100 dark:hover:text-stone-300">
-                                <RelayBasesCanvasIcon className="size-6" />
-                                <span className="text-base font-medium">无限画布</span>
+                            <Link href="/" className="group flex h-full shrink-0 items-center gap-2.5 rounded-full px-2.5 text-sm font-semibold leading-none tracking-tight text-stone-950 transition hover:bg-stone-950/[0.04] hover:text-stone-700 dark:text-stone-100 dark:hover:bg-white/[0.07] dark:hover:text-white">
+                                <RelayBasesCanvasIcon className="size-8 transition duration-300 group-hover:scale-105" />
+                                <span className="text-base font-semibold">无限画布</span>
                             </Link>
 
                             <button

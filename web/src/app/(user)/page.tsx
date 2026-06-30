@@ -107,7 +107,7 @@ export default function IndexPage() {
                                 rel="noopener noreferrer"
                                 className="group inline-flex items-center gap-2 rounded-full border border-black/10 bg-white/80 py-1.5 pl-1.5 pr-3 text-sm font-medium text-stone-700 shadow-[0_10px_30px_rgba(20,25,40,0.08)] backdrop-blur transition hover:-translate-y-0.5 hover:border-black/20 hover:bg-white hover:text-stone-950 dark:border-white/10 dark:bg-white/[0.08] dark:text-stone-200 dark:shadow-black/20 dark:hover:border-white/20 dark:hover:bg-white/[0.12] dark:hover:text-white"
                             >
-                                <RelayBasesCanvasIcon className="size-7 transition duration-300 group-hover:scale-105" />
+                                <RelayBasesCanvasIcon className="size-8 transition duration-300 group-hover:scale-105" />
                                 <span className="font-semibold tracking-tight">RelayBases Canvas</span>
                                 <ExternalLink className="size-3.5 opacity-60 transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:opacity-90" />
                             </a>
