@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { App, Image, Tag } from "antd";
 
 import { navigationTools } from "@/constant/navigation-tools";
-import { RELAYBASES_CONSOLE_URL, RELAYBASES_HOME_URL, RELAYBASES_KEYS_URL, RELAYBASES_WALLET_URL } from "@/constant/relaybases-links";
+import { RELAYBASES_HOME_URL, RELAYBASES_KEYS_URL } from "@/constant/relaybases-links";
 import { fetchPrompts, type Prompt } from "@/services/api/prompts";
 import { useConfigStore } from "@/stores/use-config-store";
 import { useLanguageStore } from "@/stores/use-language-store";
@@ -26,21 +26,6 @@ const fallbackPrompts: Prompt[] = [
     createFallbackPrompt("rb-prompt-012", "黑色机械腕表特写", "/prompt-covers/relaybases/rb-prompt-012.webp", ["产品", "机械"]),
     createFallbackPrompt("rb-prompt-032", "竹林晨雾小径", "/prompt-covers/relaybases/rb-prompt-032.webp", ["风景", "东方"]),
 ];
-
-const promoLinks = [
-    {
-        label: "API 密钥",
-        href: RELAYBASES_KEYS_URL,
-    },
-    {
-        label: "控制台",
-        href: RELAYBASES_CONSOLE_URL,
-    },
-    {
-        label: "钱包充值",
-        href: RELAYBASES_WALLET_URL,
-    },
-] as const;
 
 const workflowHighlights = ["提示词", "图片", "视频", "Agent"] as const;
 
@@ -163,25 +148,6 @@ export default function IndexPage() {
                                 </span>
                                 配置 Key
                             </button>
-                        </div>
-                        <div className="mt-8 grid max-w-2xl gap-3 sm:grid-cols-3">
-                            {promoLinks.map((link) => {
-                                return (
-                                    <a
-                                        key={link.href}
-                                        href={link.href}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="group flex items-center gap-3 rounded-xl border border-black/10 bg-white/65 px-4 py-3 shadow-sm backdrop-blur transition hover:-translate-y-0.5 hover:border-black/20 hover:bg-white dark:border-white/10 dark:bg-white/10 dark:hover:border-white/20 dark:hover:bg-white/15"
-                                    >
-                                        <span className="min-w-0">
-                                            <span className="block text-sm font-medium text-stone-950 dark:text-white">{link.label}</span>
-                                            <span className="mt-0.5 block text-xs text-stone-500 dark:text-stone-400">主站管理</span>
-                                        </span>
-                                        <ExternalLink className="ml-auto size-3.5 opacity-40 transition group-hover:opacity-70" />
-                                    </a>
-                                );
-                            })}
                         </div>
                     </div>
 
