@@ -118,8 +118,8 @@ export default function IndexPage() {
         <main className="min-h-full bg-[#f7f8f6] text-stone-950 dark:bg-[#090a09] dark:text-stone-50">
             <section className="relative overflow-hidden border-b border-black/10 bg-[linear-gradient(135deg,#fbfbf8_0%,#eef3ef_48%,#f8fafc_100%)] dark:border-white/10 dark:bg-[linear-gradient(135deg,#090a09_0%,#151713_54%,#0d1110_100%)]">
                 <div className="absolute inset-0 bg-[linear-gradient(rgba(22,24,20,.06)_1px,transparent_1px),linear-gradient(90deg,rgba(22,24,20,.06)_1px,transparent_1px)] bg-[size:32px_32px] dark:bg-[linear-gradient(rgba(255,255,255,.055)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.055)_1px,transparent_1px)]" />
-                <div className="relative mx-auto grid max-w-7xl gap-9 px-6 py-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-center lg:py-10">
-                    <div className="max-w-3xl">
+                <div className="relative mx-auto grid max-w-[1440px] gap-9 px-6 py-8 lg:grid-cols-[minmax(670px,0.95fr)_minmax(0,0.78fr)] lg:items-center lg:py-10 xl:grid-cols-[minmax(760px,0.98fr)_minmax(0,0.9fr)]">
+                    <div className="max-w-none">
                         <div className="mb-10 sm:mb-12">
                             <a
                                 href={RELAYBASES_HOME_URL}
@@ -131,7 +131,11 @@ export default function IndexPage() {
                                 <ExternalLink className="size-3.5" />
                             </a>
                         </div>
-                        <h1 className="max-w-4xl text-balance text-4xl font-semibold leading-[1.04] tracking-normal text-stone-950 sm:text-5xl lg:text-6xl dark:text-white">把生图、视频和 Agent 串进同一张画布</h1>
+                        <h1 className="max-w-none text-4xl font-semibold leading-[1.04] tracking-normal text-stone-950 sm:text-5xl lg:whitespace-nowrap lg:text-[2.35rem] xl:text-[2.55rem] 2xl:text-[2.95rem] dark:text-white">
+                            把
+                            <span className="bg-[linear-gradient(90deg,#0f172a_0%,#059669_46%,#2563eb_100%)] bg-clip-text text-transparent dark:bg-[linear-gradient(90deg,#ffffff_0%,#6ee7b7_48%,#93c5fd_100%)]">生图、视频和 Agent</span>
+                            {" "}串进同一张画布
+                        </h1>
                         <p className="mt-5 max-w-2xl text-base leading-7 text-stone-600 dark:text-stone-300">
                             面向 RelayBases 用户的创作入口。获取 API Key 后，在画布配置里分别填写媒体 Key 和文本 Key，即可使用图片生成、视频任务、Agent 编排和精选提示词库。
                         </p>
